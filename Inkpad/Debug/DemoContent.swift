@@ -8,6 +8,7 @@
 
 #if DEBUG
 import UIKit
+import CoreText
 import PencilKit
 import SwiftData
 
@@ -54,6 +55,10 @@ enum DemoContent {
             notebook.coverLabelRaw = labels[index].rawValue
             notebook.coverEmblem = ["🔭", "", "💡", "🎵", "", "", "📐", "✈️"][index]
         }
+        let lecture = Notebook.create(in: context, title: "Handwriting Test", cover: .ochre, paperStyle: .lined, paperColor: .white)
+        lecture.sortedPages.first?.drawingData = textInk(["Meeting notes", "Buy milk tomorrow", "Call Sam at 5pm"]).dataRepresentation()
+        lecture.updatedAt = .now.addingTimeInterval(-10)
+
         let board = Notebook.createCanvas(in: context, title: "Project Board", cover: .moss, paperStyle: .dots, paperColor: .white)
         board.sortedPages.first?.drawingData = scribbles().dataRepresentation()
         board.updatedAt = .now.addingTimeInterval(-30)
@@ -104,6 +109,64 @@ enum DemoContent {
         }
         try? data.write(to: url)
         return url
+    }
+
+    /// Ink that traces a handwriting-style font, for testing text recognition.
+    private static func textInk(_ lines: [String]) -> PKDrawing {
+        let font = CTFontCreateWithName("Noteworthy-Light" as CFString, 44, nil)
+        let ink = PKInk(.pen, color: .black)
+        var strokes: [PKStroke] = []
+        for (row, line) in lines.enumerated() {
+            let attributed = NSAttributedString(string: line, attributes: [.font: font])
+            let ctLine = CTLineCreateWithAttributedString(attributed)
+            for run in CTLineGetGlyphRuns(ctLine) as! [CTRun] {
+                let count = CTRunGetGlyphCount(run)
+                var glyphs = Array(repeating: CGGlyph(), count: count)
+                var positions = Array(repeating: CGPoint.zero, count: count)
+                CTRunGetGlyphs(run, CFRange(location: 0, length: count), &glyphs)
+                CTRunGetPositions(run, CFRange(location: 0, length: count), &positions)
+                for (glyph, position) in zip(glyphs, positions) {
+                    guard let path = CTFontCreatePathForGlyph(font, glyph, nil) else { continue }
+                    // Font paths are y-up; flip onto the page.
+                    let origin = CGPoint(x: 100 + position.x, y: 150 + CGFloat(row) * 78)
+                    var points: [CGPoint] = []
+                    func flush() {
+                        if points.count > 1 {
+                            let strokePoints = points.enumerated().map { index, point in
+                                PKStrokePoint(location: point, timeOffset: Double(index) * 0.01, size: CGSize(width: 2.5, height: 2.5), opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+                            }
+                            strokes.append(PKStroke(ink: ink, path: PKStrokePath(controlPoints: strokePoints, creationDate: .now)))
+                        }
+                        points = []
+                    }
+                    path.applyWithBlock { element in
+                        let p = element.pointee.points
+                        func map(_ point: CGPoint) -> CGPoint { CGPoint(x: origin.x + point.x, y: origin.y - point.y) }
+                        switch element.pointee.type {
+                        case .moveToPoint:
+                            flush()
+                            points.append(map(p[0]))
+                        case .addLineToPoint:
+                            points.append(map(p[0]))
+                        case .addQuadCurveToPoint:
+                            points.append(map(p[0]))
+                            points.append(map(p[1]))
+                        case .addCurveToPoint:
+                            points.append(map(p[0]))
+                            points.append(map(p[1]))
+                            points.append(map(p[2]))
+                        case .closeSubpath:
+                            if let first = points.first { points.append(first) }
+                            flush()
+                        @unknown default:
+                            break
+                        }
+                    }
+                    flush()
+                }
+            }
+        }
+        return PKDrawing(strokes: strokes)
     }
 
     /// Wavy lines that look roughly like handwriting.
