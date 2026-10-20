@@ -60,7 +60,10 @@ enum DemoContent {
         lecture.updatedAt = .now.addingTimeInterval(-10)
 
         let board = Notebook.createCanvas(in: context, title: "Project Board", cover: .moss, paperStyle: .dots, paperColor: .white)
-        board.sortedPages.first?.drawingData = scribbles().dataRepresentation()
+        board.sortedPages.first?.drawingData = scribbles()
+            .transformed(using: CGAffineTransform(translationX: 7600, y: 7700))
+            .dataRepresentation()
+        board.sortedPages.first?.items = demoBoardItems(for: board, in: context)
         board.updatedAt = .now.addingTimeInterval(-30)
 
         if let notebook = try? PDFImporter.makeNotebook(from: samplePDF(), in: context) {
@@ -109,6 +112,48 @@ enum DemoContent {
         }
         try? data.write(to: url)
         return url
+    }
+
+    /// Sticky notes, shapes, a photo and a graph around the middle of a board.
+    private static func demoBoardItems(for board: Notebook, in context: ModelContext) -> [BoardItem] {
+        let origin = CGPoint(x: 7600, y: 7300)
+        var items: [BoardItem] = []
+        for (index, text) in ["Launch plan", "Ask Sam about the budget", "Sketch the logo"].enumerated() {
+            var note = BoardItem(kind: .sticky, x: origin.x + Double(index) * 250, y: origin.y, width: 220, height: 220, colorHex: BoardItem.stickyColors[index])
+            note.text = text
+            items.append(note)
+        }
+        for (index, shape) in [BoardItem.Shape.ellipse, .star, .arrow].enumerated() {
+            var item = BoardItem(kind: .shape, x: origin.x + Double(index) * 230, y: origin.y + 820, width: shape == .arrow ? 220 : 180, height: shape == .arrow ? 100 : 180, colorHex: BoardItem.shapeColors[index])
+            item.shape = shape
+            items.append(item)
+        }
+        var graph = BoardItem(kind: .graph, x: origin.x + 780, y: origin.y, width: 440, height: 320, colorHex: "FFFFFF")
+        graph.text = "y = sin(x)\ny = x^2/10 - 2"
+        items.append(graph)
+
+        let photo = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 400)).image { context in
+            let colors = [UIColor(hex: 0xF4A259).cgColor, UIColor(hex: 0x5B8E7D).cgColor] as CFArray
+            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
+            context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: 400), options: [])
+            UIColor(hex: 0xFFF3D6).setFill()
+            UIBezierPath(ovalIn: CGRect(x: 380, y: 60, width: 110, height: 110)).fill()
+            UIColor(hex: 0x2F4858).setFill()
+            let hills = UIBezierPath()
+            hills.move(to: CGPoint(x: 0, y: 400))
+            hills.addCurve(to: CGPoint(x: 600, y: 300), controlPoint1: CGPoint(x: 150, y: 180), controlPoint2: CGPoint(x: 380, y: 380))
+            hills.addLine(to: CGPoint(x: 600, y: 400))
+            hills.fill()
+        }
+        if let data = photo.jpegData(compressionQuality: 0.85) {
+            let attachment = Attachment(data: data)
+            context.insert(attachment)
+            board.attachments.append(attachment)
+            var item = BoardItem(kind: .image, x: origin.x + 780, y: origin.y + 400, width: 330, height: 220, colorHex: "FFFFFF")
+            item.imageID = attachment.id
+            items.append(item)
+        }
+        return items
     }
 
     /// Ink that traces a handwriting-style font, for testing text recognition.
