@@ -12,6 +12,7 @@ enum InkTool: String, CaseIterable, Identifiable {
     case pencil
     case highlighter
     case shape
+    case laser
     case eraser
     case lasso
 
@@ -24,6 +25,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .pencil: "Pencil"
         case .highlighter: "Highlighter"
         case .shape: "Shapes"
+        case .laser: "Laser Pen"
         case .eraser: "Eraser"
         case .lasso: "Lasso"
         }
@@ -36,16 +38,22 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .pencil: "pencil"
         case .highlighter: "highlighter"
         case .shape: "square.on.circle"
+        case .laser: "laser.burst"
         case .eraser: "eraser"
         case .lasso: "lasso"
         }
     }
 
+    /// Tools that add ink to the page.
     var isInking: Bool {
         switch self {
-        case .eraser, .lasso: false
+        case .eraser, .lasso, .laser: false
         default: true
         }
+    }
+
+    var hasColors: Bool {
+        isInking || self == .laser
     }
 
     var inkType: PKInkingTool.InkType {
@@ -66,12 +74,16 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .highlighter: [12, 20, 30]
         case .shape: [1.5, 3, 5.5]
         case .eraser: [8, 20, 40]
-        case .lasso: []
+        case .lasso, .laser: []
         }
     }
 
     var palette: [UIColor] {
-        self == .highlighter ? InkPalette.highlighters : InkPalette.inks
+        switch self {
+        case .highlighter: InkPalette.highlighters
+        case .laser: InkPalette.lasers
+        default: InkPalette.inks
+        }
     }
 }
 
@@ -89,6 +101,13 @@ nonisolated enum InkPalette {
         UIColor(hex: 0x8EDBA8),
         UIColor(hex: 0x8CC8F2),
         UIColor(hex: 0xC9A4F0),
+    ]
+    static let lasers: [UIColor] = [
+        UIColor(hex: 0xFF3B30),
+        UIColor(hex: 0x0A84FF),
+        UIColor(hex: 0x30D158),
+        UIColor(hex: 0xFFD60A),
+        UIColor(hex: 0xBF5AF2),
     ]
 }
 
@@ -166,6 +185,9 @@ final class ToolState {
         case .eraser:
             return eraserIsPartial ? PKEraserTool(.bitmap, width: width) : PKEraserTool(.vector)
         case .lasso:
+            return PKLassoTool()
+        case .laser:
+            // Not used for drawing: the laser draws on its own overlay.
             return PKLassoTool()
         default:
             return PKInkingTool(tool.inkType, color: color, width: width)

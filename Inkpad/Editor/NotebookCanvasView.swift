@@ -44,6 +44,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     /// Zoom and position to restore after reloading, so a growing board doesn't jump.
     private var pendingViewport: (zoom: CGFloat, offset: CGPoint)?
 
+    private let laserOverlay = LaserOverlayView()
+    private let laserRecognizer = LaserGestureRecognizer()
+    /// The scroll view's own setting, restored when the laser is put away.
+    private var defaultMinimumPanTouches: Int?
     private let pullIndicator = PullToAddView()
     private let pullThreshold: CGFloat = 90
     private var isPullArmed = false
@@ -67,6 +71,20 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         pagesContainer.isUserInteractionEnabled = false
         canvasView.insertSubview(pagesContainer, at: 0)
         addSubview(canvasView)
+
+        addSubview(laserOverlay)
+        laserRecognizer.isEnabled = false
+        laserRecognizer.cancelsTouchesInView = true
+        laserRecognizer.onBegan = { [weak self] point in
+            self?.laserOverlay.begin(at: point)
+        }
+        laserRecognizer.onMoved = { [weak self] points in
+            self?.laserOverlay.add(points)
+        }
+        laserRecognizer.onEnded = { [weak self] in
+            self?.laserOverlay.end()
+        }
+        addGestureRecognizer(laserRecognizer)
 
         pullIndicator.alpha = 0
         addSubview(pullIndicator)
@@ -168,8 +186,16 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     // MARK: - Tools
 
-    func apply(tool: @autoclosure () -> PKTool, key: String, isRulerActive: Bool, allowsFingerDrawing: Bool, snapsShapes: Bool) {
+    func apply(
+        tool: @autoclosure () -> PKTool,
+        key: String,
+        isRulerActive: Bool,
+        allowsFingerDrawing: Bool,
+        snapsShapes: Bool,
+        laserColor: UIColor?
+    ) {
         self.snapsShapes = snapsShapes
+        applyLaser(color: laserColor, allowsFingerDrawing: allowsFingerDrawing)
         if key != appliedToolKey {
             appliedToolKey = key
             canvasView.tool = tool()
@@ -184,11 +210,36 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
     }
 
+    /// The laser pen takes over Pencil touches from PencilKit while it's selected.
+    private func applyLaser(color: UIColor?, allowsFingerDrawing: Bool) {
+        let isActive = color != nil
+        if let color {
+            laserOverlay.color = color
+        }
+        laserRecognizer.allowedTouchTypes = allowsFingerDrawing
+            ? [NSNumber(value: UITouch.TouchType.pencil.rawValue), NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            : [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+        guard laserRecognizer.isEnabled != isActive else { return }
+        laserRecognizer.isEnabled = isActive
+        canvasView.drawingGestureRecognizer.isEnabled = !isActive
+
+        // A finger laser needs two fingers to scroll, just like drawing with a finger.
+        let pan = canvasView.panGestureRecognizer
+        if isActive && allowsFingerDrawing {
+            defaultMinimumPanTouches = pan.minimumNumberOfTouches
+            pan.minimumNumberOfTouches = 2
+        } else if let defaultMinimumPanTouches {
+            pan.minimumNumberOfTouches = defaultMinimumPanTouches
+            self.defaultMinimumPanTouches = nil
+        }
+    }
+
     // MARK: - Layout
 
     override func layoutSubviews() {
         super.layoutSubviews()
         canvasView.frame = bounds
+        laserOverlay.frame = bounds
         guard bounds.width > 0, layout.contentSize.width > 0 else { return }
 
         // Zoomed all the way out, a page fills the width (or, side by side, the screen).

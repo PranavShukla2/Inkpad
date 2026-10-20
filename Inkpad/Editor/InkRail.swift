@@ -103,7 +103,7 @@ struct InkRail: View {
 
     @ViewBuilder
     private var options: some View {
-        if tools.tool.isInking {
+        if tools.tool.hasColors {
             ForEach(Array(tools.tool.palette.enumerated()), id: \.offset) { _, color in
                 ColorDrop(color: Color(color), isSelected: tools.color.hexString == color.hexString) {
                     tools.setColor(color)
@@ -117,8 +117,10 @@ struct InkRail: View {
             .labelsHidden()
             .scaleEffect(0.85)
             .frame(width: 32, height: 32)
-            RailDivider()
-            widthOptions(color: tools.color.isVeryDark ? Theme.ink : Color(tools.color))
+            if tools.tool.isInking {
+                RailDivider()
+                widthOptions(color: tools.color.isVeryDark ? Theme.ink : Color(tools.color))
+            }
         } else if tools.tool == .eraser {
             RailButton(symbol: "scribble", label: "Erase Whole Strokes", isSelected: !tools.eraserIsPartial, style: .toggle) {
                 tools.eraserIsPartial = false
