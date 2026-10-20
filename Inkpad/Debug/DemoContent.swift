@@ -19,8 +19,13 @@ enum DemoContent {
 
     static func seedIfRequested(in context: ModelContext) {
         guard ProcessInfo.processInfo.arguments.contains("-seedDemo") else { return }
-        try? context.delete(model: Notebook.self)
-        try? context.delete(model: Folder.self)
+        // Batch deletes fail on relationships, so remove items one by one.
+        for notebook in (try? context.fetch(FetchDescriptor<Notebook>())) ?? [] {
+            context.delete(notebook)
+        }
+        for folder in (try? context.fetch(FetchDescriptor<Folder>())) ?? [] {
+            context.delete(folder)
+        }
         let university = Folder(name: "University")
         let personal = Folder(name: "Personal")
         context.insert(university)
@@ -44,6 +49,10 @@ enum DemoContent {
             notebook.folder = [0, 3, 5].contains(index) ? university : [1, 7].contains(index) ? personal : nil
             notebook.updatedAt = .now.addingTimeInterval(-Double(index) * 5400)
         }
+        let board = Notebook.createCanvas(in: context, title: "Project Board", cover: .moss, paperStyle: .dots, paperColor: .white)
+        board.sortedPages.first?.drawingData = scribbles().dataRepresentation()
+        board.updatedAt = .now.addingTimeInterval(-30)
+
         if let notebook = try? PDFImporter.makeNotebook(from: samplePDF(), in: context) {
             notebook.sortedPages.first?.drawingData = scribbles().dataRepresentation()
             notebook.updatedAt = .now.addingTimeInterval(-60)
