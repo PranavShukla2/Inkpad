@@ -107,6 +107,8 @@ final class ToolState {
     var railOnRight = false { didSet { persist() } }
     /// The rail folds down to a single button to free up the page.
     var isRailCollapsed = false { didSet { persist() } }
+    /// Pages in a column, or side by side and swiped one at a time.
+    var scrollAxis = ScrollAxis.vertical { didSet { persist() } }
 
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private var isRestoring = false
@@ -181,6 +183,7 @@ final class ToolState {
         defaults.set(allowsFingerDrawing, forKey: "allowsFingerDrawing")
         defaults.set(railOnRight, forKey: "railOnRight")
         defaults.set(isRailCollapsed, forKey: "isRailCollapsed")
+        defaults.set(scrollAxis.rawValue, forKey: "scrollAxis")
     }
 
     private func restore() {
@@ -202,6 +205,7 @@ final class ToolState {
         allowsFingerDrawing = defaults.bool(forKey: "allowsFingerDrawing")
         railOnRight = defaults.bool(forKey: "railOnRight")
         isRailCollapsed = defaults.bool(forKey: "isRailCollapsed")
+        scrollAxis = defaults.string(forKey: "scrollAxis").flatMap(ScrollAxis.init(rawValue:)) ?? .vertical
     }
 }
 

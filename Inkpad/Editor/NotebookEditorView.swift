@@ -18,8 +18,8 @@ struct NotebookEditorView: View {
 
     private let topBarHeight: CGFloat = 56
 
-    init(notebook: Notebook) {
-        _model = State(initialValue: NotebookEditorModel(notebook: notebook))
+    init(notebook: Notebook, scrollAxis: ScrollAxis) {
+        _model = State(initialValue: NotebookEditorModel(notebook: notebook, scrollAxis: scrollAxis))
     }
 
     var body: some View {
@@ -47,6 +47,9 @@ struct NotebookEditorView: View {
                     pageIndicator
                 }
             }
+        }
+        .onChange(of: tools.scrollAxis) { _, axis in
+            model.setScrollAxis(axis)
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active {
@@ -202,6 +205,13 @@ struct NotebookEditorView: View {
                 .pickerStyle(.menu)
             }
             Divider()
+            Picker("Scrolling", selection: $tools.scrollAxis) {
+                ForEach(ScrollAxis.allCases) { axis in
+                    Label(axis.name, systemImage: axis == .vertical ? "arrow.up.and.down" : "arrow.left.and.right")
+                        .tag(axis)
+                }
+            }
+            .pickerStyle(.menu)
             Toggle("Left-Handed Layout", isOn: $tools.railOnRight)
             Button("Rename…", systemImage: "pencil") {
                 renameText = model.notebook.title

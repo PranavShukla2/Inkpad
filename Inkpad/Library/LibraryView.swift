@@ -76,7 +76,7 @@ struct LibraryView: View {
             }
         }
         .fullScreenCover(item: $openNotebook) { notebook in
-            NotebookEditorView(notebook: notebook)
+            NotebookEditorView(notebook: notebook, scrollAxis: tools.scrollAxis)
                 .environment(tools)
                 .zoomTransition(sourceID: notebook.persistentModelID, in: transitionNamespace)
         }

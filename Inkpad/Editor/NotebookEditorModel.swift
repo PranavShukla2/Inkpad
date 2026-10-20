@@ -15,6 +15,7 @@ final class NotebookEditorModel {
     private(set) var currentPageIndex: Int
     private(set) var canUndo = false
     private(set) var canRedo = false
+    private(set) var scrollAxis: ScrollAxis
 
     @ObservationIgnored private weak var canvas: NotebookCanvasView?
     /// The notebook's PDF, if any. Safe to read from background threads.
@@ -28,8 +29,9 @@ final class NotebookEditorModel {
     @ObservationIgnored private var pagesNeedingRecognition: [Page] = []
     @ObservationIgnored private var recognitionTask: Task<Void, Never>?
 
-    init(notebook: Notebook) {
+    init(notebook: Notebook, scrollAxis: ScrollAxis) {
         self.notebook = notebook
+        self.scrollAxis = scrollAxis
         let pages = notebook.sortedPages
         self.pages = pages
         self.currentPageIndex = min(max(notebook.currentPageIndex, 0), max(pages.count - 1, 0))
@@ -49,6 +51,10 @@ final class NotebookEditorModel {
         }
         canvas.onCurrentPageChanged = { [weak self] index in
             self?.currentPageIndex = index
+        }
+        canvas.onAddPageRequested = { [weak self] in
+            guard let self else { return }
+            insertPage(at: pages.count)
         }
         reloadCanvas(scrollTo: currentPageIndex)
     }
@@ -235,6 +241,12 @@ final class NotebookEditorModel {
         }
     }
 
+    func setScrollAxis(_ axis: ScrollAxis) {
+        guard axis != scrollAxis else { return }
+        scrollAxis = axis
+        changePages(scrollTo: currentPageIndex) {}
+    }
+
     func setPaperColor(_ color: PaperColor) {
         changePages(scrollTo: currentPageIndex) {
             notebook.paperColor = color
@@ -253,7 +265,7 @@ final class NotebookEditorModel {
         layoutVersion += 1
         pages = notebook.sortedPages
         currentPageIndex = min(max(index, 0), max(pages.count - 1, 0))
-        canvas?.load(specs: pages.map(\.spec), paperColor: notebook.paperColor, pdf: pdf, scrollTo: currentPageIndex)
+        canvas?.load(specs: pages.map(\.spec), paperColor: notebook.paperColor, pdf: pdf, axis: scrollAxis, scrollTo: currentPageIndex)
         // Fingerprint through the same split that saves use, so untouched pages match.
         savedSignatures = canvas?.pageDrawings().map(\.contentSignature) ?? []
         updateUndoState()
