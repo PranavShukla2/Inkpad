@@ -10,7 +10,7 @@ struct NoteRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(note.title)
+            Text(note.displayTitle)
                 .font(.headline)
                 .lineLimit(1)
             Text(note.updatedAt, format: .dateTime.day().month().year().hour().minute())

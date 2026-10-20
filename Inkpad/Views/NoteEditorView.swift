@@ -7,12 +7,12 @@ import SwiftUI
 import PencilKit
 
 struct NoteEditorView: View {
-    let note: Note
+    @Bindable var note: Note
     // Loaded once so the canvas isn't re-decoded on every stroke.
     @State private var initialDrawing: PKDrawing
 
     init(note: Note) {
-        self.note = note
+        _note = Bindable(note)
         _initialDrawing = State(initialValue: note.drawing)
     }
 
@@ -21,7 +21,8 @@ struct NoteEditorView: View {
             note.drawing = drawing
         }
         .ignoresSafeArea(edges: .bottom)
-        .navigationTitle(note.title)
+        .navigationTitle($note.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarRole(.editor)
     }
 }

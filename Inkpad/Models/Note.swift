@@ -13,9 +13,15 @@ final class Note {
     var updatedAt: Date
     @Attribute(.externalStorage) var drawingData: Data?
 
-    init(title: String = "Untitled", createdAt: Date = .now) {
+    static let defaultTitle = "Untitled"
+
+    init(title: String = Note.defaultTitle, createdAt: Date = .now) {
         self.title = title
         self.createdAt = createdAt
         self.updatedAt = createdAt
+    }
+
+    var displayTitle: String {
+        title.trimmingCharacters(in: .whitespaces).isEmpty ? Note.defaultTitle : title
     }
 }
