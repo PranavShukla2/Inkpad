@@ -40,6 +40,42 @@ final class LaserGestureRecognizer: UIGestureRecognizer {
     }
 }
 
+/// Watches the eraser's path without taking touches from PencilKit, so the
+/// eraser can also remove text boxes it passes over.
+final class EraserTracker: UIGestureRecognizer {
+    var onMove: ((CGPoint) -> Void)?
+
+    override init(target: Any?, action: Selector?) {
+        super.init(target: target, action: action)
+        cancelsTouchesInView = false
+        delaysTouchesEnded = false
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        report(touches, event: event)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        report(touches, event: event)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        // Never recognises, so it never interferes with erasing itself.
+        state = .failed
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        state = .failed
+    }
+
+    private func report(_ touches: Set<UITouch>, event: UIEvent) {
+        guard let touch = touches.first, let view else { return }
+        for sample in event.coalescedTouches(for: touch) ?? [touch] {
+            onMove?(sample.location(in: view))
+        }
+    }
+}
+
 /// Draws glowing laser trails. Everything written stays visible while you keep
 /// writing, then the whole lot fades together once you pause.
 /// Nothing here is ever added to the notebook.

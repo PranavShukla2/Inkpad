@@ -32,7 +32,8 @@ struct NotebookCanvas: UIViewRepresentable {
             snapsShapes: tools.tool == .shape,
             laserColor: tools.tool == .laser ? tools.color : nil,
             textStyle: tools.tool == .text ? (tools.textSize, tools.color) : nil,
-            isTextPen: tools.tool == .textPen
+            isTextPen: tools.tool == .textPen,
+            eraserWidth: tools.tool == .eraser ? tools.eraserWidth : nil
         )
     }
 }

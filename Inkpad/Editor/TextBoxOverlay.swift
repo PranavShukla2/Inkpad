@@ -70,6 +70,11 @@ final class TextBoxOverlay: UIView, UITextViewDelegate {
         return box
     }
 
+    /// The box under a point, allowing some slack for the eraser's size.
+    func box(at point: CGPoint, slack: CGFloat) -> TextBox? {
+        views.values.first { $0.frame.insetBy(dx: -slack, dy: -slack).contains(point) }?.box
+    }
+
     func remove(id: UUID) {
         views[id]?.removeFromSuperview()
         views[id] = nil

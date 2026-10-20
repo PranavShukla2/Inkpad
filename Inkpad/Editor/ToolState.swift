@@ -159,6 +159,11 @@ final class ToolState {
         tool == .eraser && eraserIsPartial ? "eraser.line.dashed" : tool.symbol
     }
 
+    /// How wide the eraser is, for erasing text boxes too.
+    var eraserWidth: CGFloat {
+        eraserIsPartial ? InkTool.eraser.widths[min(widthIndices[.eraser] ?? 1, InkTool.eraser.widths.count - 1)] : 12
+    }
+
     /// Font size for the Text tool.
     var textSize: CGFloat {
         InkTool.text.widths[min(widthIndices[.text] ?? 1, 2)]

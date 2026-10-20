@@ -62,6 +62,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     private let laserOverlay = LaserOverlayView()
     private let laserRecognizer = LaserGestureRecognizer()
+    private let eraserTracker = EraserTracker()
+    private var eraserSlack: CGFloat = 6
     /// The scroll view's own setting, restored when the laser is put away.
     private var defaultMinimumPanTouches: Int?
     private let ruler = RulerView()
@@ -129,6 +131,12 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             self?.laserOverlay.end()
         }
         addGestureRecognizer(laserRecognizer)
+
+        eraserTracker.isEnabled = false
+        eraserTracker.onMove = { [weak self] point in
+            self?.eraseTextBox(at: point)
+        }
+        canvasView.addGestureRecognizer(eraserTracker)
 
         addPageButton.addAction(UIAction { [weak self] _ in
             self?.onAddPageRequested?()
@@ -276,8 +284,14 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         snapsShapes: Bool,
         laserColor: UIColor?,
         textStyle: (fontSize: CGFloat, color: UIColor)?,
-        isTextPen: Bool
+        isTextPen: Bool,
+        eraserWidth: CGFloat?
     ) {
+        eraserTracker.isEnabled = eraserWidth != nil
+        eraserTracker.allowedTouchTypes = allowsFingerDrawing
+            ? [NSNumber(value: UITouch.TouchType.pencil.rawValue), NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            : [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+        eraserSlack = (eraserWidth ?? 12) / 2
         self.snapsShapes = snapsShapes
         if isTextPenActive && !isTextPen {
             // Switching away converts what was written straight away.
@@ -329,6 +343,17 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             }
         }
         textOverlay.isEditable = style != nil
+    }
+
+    /// Erasing over a text box deletes it, undoably.
+    private func eraseTextBox(at point: CGPoint) {
+        let contentPoint = canvasView.convert(point, to: textOverlay)
+        guard let box = textOverlay.box(at: contentPoint, slack: eraserSlack) else { return }
+        textOverlay.remove(id: box.id)
+        haptics.impactOccurred(intensity: 0.5)
+        canvasView.undoManager?.registerUndo(withTarget: self) { target in
+            target.textOverlay.add(box, beginEditing: false)
+        }
     }
 
     /// Scrolls a text box being edited into the top part of the screen, clear of the keyboard.
