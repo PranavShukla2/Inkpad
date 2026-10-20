@@ -12,6 +12,8 @@ struct NotebookEditorView: View {
     @State private var model: NotebookEditorModel
     @State private var isRenaming = false
     @State private var isShowingPages = false
+    @State private var isShowingRecordings = false
+    @State private var recorder = AudioRecorder()
     @State private var renameText = ""
 
     private let topBarHeight: CGFloat = 56
@@ -58,8 +60,11 @@ struct NotebookEditorView: View {
             }
         }
         .onDisappear {
+            recorder.stopRecording(into: model.notebook)
+            recorder.stopPlayback()
             model.close()
         }
+        .animation(.snappy, value: recorder.isRecording)
         #if DEBUG
         .task {
             if UserDefaults.standard.bool(forKey: "showPages") {
@@ -116,6 +121,30 @@ struct NotebookEditorView: View {
                 .frame(width: 1, height: 22)
                 .padding(.horizontal, 6)
 
+            if recorder.isRecording {
+                Button {
+                    recorder.stopRecording(into: model.notebook)
+                } label: {
+                    HStack(spacing: 6) {
+                        Circle().fill(.white).frame(width: 8, height: 8)
+                        Text(Duration.seconds(recorder.elapsed), format: .time(pattern: .minuteSecond))
+                            .font(.subheadline.monospacedDigit().weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Theme.stamp, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Stop recording")
+                .transition(.scale.combined(with: .opacity))
+            }
+            BarButton(symbol: recorder.isRecording ? "waveform" : "mic", label: "Recordings") {
+                isShowingRecordings = true
+            }
+            .popover(isPresented: $isShowingRecordings) {
+                RecordingsPanel(notebook: model.notebook, recorder: recorder)
+            }
             ShareLink(
                 item: NotebookExport(title: model.notebook.displayTitle) { [model] in
                     model.saveNow()
