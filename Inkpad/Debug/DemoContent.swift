@@ -51,6 +51,23 @@ enum DemoContent {
         try? context.save()
     }
 
+    /// Launch with `-seedLegacyNotes YES` to add first-version notes before migration runs.
+    static func seedLegacyNotesIfRequested(in context: ModelContext) {
+        guard UserDefaults.standard.bool(forKey: "seedLegacyNotes") else { return }
+        let drawingNote = Note(title: "Old Drawing Note")
+        // Wider than a page and taller than one, like a landscape canvas.
+        var drawing = scribbles()
+        drawing.append(scribbles().transformed(using: CGAffineTransform(translationX: 400, y: 1300)))
+        drawingNote.drawingData = drawing.dataRepresentation()
+        context.insert(drawingNote)
+
+        let pdfNote = Note(title: "Old PDF Note")
+        pdfNote.pdfData = try? Data(contentsOf: samplePDF())
+        pdfNote.pageDrawingData = [1: scribbles().dataRepresentation()]
+        context.insert(pdfNote)
+        try? context.save()
+    }
+
     /// Launch with `-exportNotebook Title` to write that notebook's PDF to Documents.
     static func exportIfRequested(from notebooks: [Notebook]) {
         guard let title = UserDefaults.standard.string(forKey: "exportNotebook"),

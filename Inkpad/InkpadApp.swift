@@ -21,6 +21,9 @@ struct InkpadApp: App {
 
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            #if DEBUG
+            DemoContent.seedLegacyNotesIfRequested(in: container.mainContext)
+            #endif
             LegacyNoteMigration.run(in: container.mainContext)
             #if DEBUG
             DemoContent.seedIfRequested(in: container.mainContext)
