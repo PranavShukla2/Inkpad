@@ -64,6 +64,28 @@ enum DemoContent {
             .transformed(using: CGAffineTransform(translationX: 7600, y: 7700))
             .dataRepresentation()
         board.sortedPages.first?.items = demoBoardItems(for: board, in: context)
+        board.updateCanvasPreview()
+
+        let moodboard = Notebook.createCanvas(in: context, title: "Moodboard", cover: .plum, paperStyle: .dots, paperColor: .white)
+        let center = CGPoint(x: 8000, y: 8000)
+        moodboard.sortedPages.first?.items = BoardItem.stickyColors.enumerated().map { index, hex in
+            var note = BoardItem(kind: .sticky, x: center.x + Double(index % 3) * 240, y: center.y + Double(index / 3) * 240, width: 210, height: 210, colorHex: hex)
+            note.text = ["Warm tones", "Serif type", "Paper texture", "Stamp red", "Soft shadows", "Big margins"][index]
+            return note
+        }
+        moodboard.updateCanvasPreview()
+        moodboard.updatedAt = .now.addingTimeInterval(-3600)
+
+        let maths = Notebook.createCanvas(in: context, title: "Calculus Graphs", cover: .ink, paperStyle: .grid, paperColor: .white)
+        maths.sortedPages.first?.items = [("y = x^3 - 3x", 0), ("y = e^(-x^2)", 1), ("y = tan(x)", 2)].map { text, index in
+            var graph = BoardItem(kind: .graph, x: center.x + Double(index) * 470, y: center.y, width: 440, height: 300, colorHex: "FFFFFF")
+            graph.text = text
+            graph.domainMin = -4
+            graph.domainMax = 4
+            return graph
+        }
+        maths.updateCanvasPreview()
+        maths.updatedAt = .now.addingTimeInterval(-7200)
         board.updatedAt = .now.addingTimeInterval(-30)
 
         if let notebook = try? PDFImporter.makeNotebook(from: samplePDF(), in: context) {
