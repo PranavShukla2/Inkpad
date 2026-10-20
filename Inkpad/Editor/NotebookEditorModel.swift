@@ -324,6 +324,8 @@ final class NotebookEditorModel {
         recognizePendingPages()
         if notebook.isPDF {
             notebook.updateCoverImage()
+        } else if notebook.isCanvas {
+            notebook.updateCanvasPreview()
         }
         notebook.currentPageIndex = currentPageIndex
         canvas?.canvasView.undoManager?.removeAllActions()

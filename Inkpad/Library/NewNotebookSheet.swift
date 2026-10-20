@@ -15,6 +15,7 @@ struct NewNotebookSheet: View {
     @State private var pageSize = PageSizeOption.fitScreen
     @FocusState private var isTitleFocused: Bool
 
+    var initialKind = NotebookKind.notebook
     let onCreate: (NotebookKind, String, CoverDraft, PaperStyle, PaperColor, CGSize) -> Void
 
     var body: some View {
@@ -129,6 +130,9 @@ struct NewNotebookSheet: View {
             }
             .background(Theme.desk)
             .navigationTitle(kind == .canvas ? "New Canvas" : "New Notebook")
+            .onAppear {
+                kind = initialKind
+            }
             .onChange(of: kind) { _, kind in
                 // Boards read best on a dot grid; notebooks default to lines.
                 paperStyle = kind == .canvas ? .dots : .lined

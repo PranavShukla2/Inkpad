@@ -46,6 +46,7 @@ struct LibraryView: View {
     @State private var openNotebook: Notebook?
     @State private var notebookToOpenAfterSheet: Notebook?
     @State private var isCreatingNotebook = false
+    @State private var newKind = NotebookKind.notebook
     @State private var notebookBeingRenamed: Notebook?
     @State private var renameText = ""
     @State private var notebookToDelete: Notebook?
@@ -67,7 +68,7 @@ struct LibraryView: View {
         }
         .tint(Theme.stamp)
         .sheet(isPresented: $isCreatingNotebook, onDismiss: openCreatedNotebook) {
-            NewNotebookSheet { kind, title, cover, paperStyle, paperColor, pageSize in
+            NewNotebookSheet(initialKind: newKind) { kind, title, cover, paperStyle, paperColor, pageSize in
                 let notebook = switch kind {
                 case .notebook:
                     Notebook.create(
@@ -101,7 +102,7 @@ struct LibraryView: View {
             }
         }
         .confirmationDialog(
-            "Delete this notebook?",
+            notebookToDelete?.isCanvas == true ? "Delete this canvas?" : "Delete this notebook?",
             isPresented: isDeleting,
             titleVisibility: .visible,
             presenting: notebookToDelete
@@ -112,7 +113,7 @@ struct LibraryView: View {
                 }
             }
         } message: { _ in
-            Text("All of its pages will be deleted. This can't be undone.")
+            Text("Everything in it will be deleted. This can't be undone.")
         }
         .alert("New Folder", isPresented: $isCreatingFolder) {
             TextField("Name", text: $folderNameText)
@@ -154,6 +155,9 @@ struct LibraryView: View {
         #if DEBUG
         .task {
             DemoContent.exportIfRequested(from: notebooks)
+            if UserDefaults.standard.string(forKey: "section") == "canvases" {
+                section = .canvases
+            }
             if let title = UserDefaults.standard.string(forKey: "customiseCover") {
                 notebookBeingCustomised = notebooks.first { $0.title == title }
             }
@@ -266,10 +270,30 @@ struct LibraryView: View {
                         .contentTransition(.numericText())
                 }
 
+                if (section ?? .library) == .library && searchText.isEmpty {
+                    CanvasesBanner(canvases: notebooks.filter(\.isCanvas)) {
+                        withAnimation(.snappy) {
+                            section = .canvases
+                        }
+                    } onCreate: {
+                        startCreating(.canvas)
+                    }
+                }
+
                 if visibleNotebooks.isEmpty && visibleFolders.isEmpty {
                     emptyState
                         .frame(maxWidth: .infinity)
                         .padding(.top, 80)
+                } else if section == .canvases {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: 28, alignment: .top)],
+                        alignment: .leading,
+                        spacing: 32
+                    ) {
+                        ForEach(visibleNotebooks) { canvas in
+                            canvasCell(canvas)
+                        }
+                    }
                 } else {
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 32, alignment: .top)],
@@ -280,7 +304,11 @@ struct LibraryView: View {
                             folderCell(folder)
                         }
                         ForEach(visibleNotebooks) { notebook in
-                            notebookCell(notebook)
+                            if notebook.isCanvas {
+                                canvasCell(notebook)
+                            } else {
+                                notebookCell(notebook)
+                            }
                         }
                     }
                 }
@@ -331,10 +359,17 @@ struct LibraryView: View {
                 } label: {
                     Label("Import PDF", systemImage: "doc.badge.arrow.up")
                 }
-                Button {
-                    isCreatingNotebook = true
+                Menu {
+                    Button("New Notebook", systemImage: "book.closed") {
+                        startCreating(.notebook)
+                    }
+                    Button("New Canvas", systemImage: "square.dashed") {
+                        startCreating(.canvas)
+                    }
                 } label: {
-                    Label("New Notebook", systemImage: "plus")
+                    Label("New", systemImage: "plus")
+                } primaryAction: {
+                    startCreating(section == .canvases ? .canvas : .notebook)
                 }
             }
         }
@@ -388,6 +423,41 @@ struct LibraryView: View {
         }
         .contextMenu {
             notebookMenu(notebook)
+        }
+    }
+
+    private func canvasCell(_ canvas: Notebook) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                open(canvas)
+            } label: {
+                CanvasCardView(title: canvas.displayTitle, previewData: canvas.coverImageData, isFavorite: canvas.isFavorite)
+            }
+            .buttonStyle(PressableButtonStyle())
+            .draggable(canvas.dragID) {
+                CanvasCardView(title: canvas.displayTitle, previewData: canvas.coverImageData)
+                    .frame(width: 160)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(canvas.displayTitle)
+                    .font(.serif(.subheadline))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                if let snippet = searchSnippet(for: canvas) {
+                    Text(snippet)
+                        .font(.caption)
+                        .foregroundStyle(Theme.stamp)
+                        .lineLimit(2)
+                } else {
+                    Text(canvas.updatedAt, format: .relative(presentation: .named))
+                        .font(.caption)
+                        .foregroundStyle(Theme.inkSecondary)
+                }
+            }
+        }
+        .contextMenu {
+            notebookMenu(canvas)
         }
     }
 
@@ -482,7 +552,7 @@ struct LibraryView: View {
         Button(notebook.isFavorite ? "Remove from Favourites" : "Add to Favourites", systemImage: notebook.isFavorite ? "star.slash" : "star") {
             notebook.isFavorite.toggle()
         }
-        if !notebook.isPDF {
+        if !notebook.isPDF && !notebook.isCanvas {
             Button("Customise Cover…", systemImage: "paintpalette") {
                 notebookBeingCustomised = notebook
             }
@@ -532,9 +602,14 @@ struct LibraryView: View {
                         isImportingPDF = true
                     }
                     .buttonStyle(.borderedProminent)
+                } else if section == .canvases {
+                    Button("New Canvas") {
+                        startCreating(.canvas)
+                    }
+                    .buttonStyle(.borderedProminent)
                 } else if section != .favorites {
                     Button("New Notebook") {
-                        isCreatingNotebook = true
+                        startCreating(.notebook)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -553,8 +628,9 @@ struct LibraryView: View {
     private var visibleNotebooks: [Notebook] {
         let inSection = notebooks.filter { notebook in
             switch section ?? .library {
-            // Search the whole library, including inside folders.
-            case .library: notebook.folder == nil || !searchText.isEmpty
+            // Search the whole library, including inside folders. Canvases
+            // live behind the Canvases banner rather than among notebooks.
+            case .library: (notebook.folder == nil && !notebook.isCanvas) || !searchText.isEmpty
             case .recents: true
             case .favorites: notebook.isFavorite
             case .documents: notebook.isPDF
@@ -594,6 +670,9 @@ struct LibraryView: View {
 
     private var sectionSubtitle: String {
         let notebookCount = visibleNotebooks.count
+        if section == .canvases {
+            return notebookCount == 1 ? "1 canvas" : "\(notebookCount) canvases"
+        }
         let notebooksText = notebookCount == 1 ? "1 notebook" : "\(notebookCount) notebooks"
         guard !visibleFolders.isEmpty else { return notebooksText }
         let foldersText = visibleFolders.count == 1 ? "1 folder" : "\(visibleFolders.count) folders"
@@ -678,6 +757,11 @@ struct LibraryView: View {
         } catch {
             importErrorMessage = error.localizedDescription
         }
+    }
+
+    private func startCreating(_ kind: NotebookKind) {
+        newKind = kind
+        isCreatingNotebook = true
     }
 
     /// Presents the editor without the system's slide or swipe-to-dismiss;
