@@ -15,11 +15,19 @@ nonisolated struct NotebookSnapshot: Sendable {
     let pdfData: Data?
     /// Canvas boards export just the area with ink, not the whole huge board.
     var cropsToInk = false
+    /// Photo data for image items, by attachment id.
+    var images: [UUID: Data] = [:]
 }
 
 extension Notebook {
     var snapshot: NotebookSnapshot {
-        NotebookSnapshot(pages: sortedPages.map(\.spec), paperColor: paperColor, pdfData: pdfData, cropsToInk: isCanvas)
+        NotebookSnapshot(
+            pages: sortedPages.map(\.spec),
+            paperColor: paperColor,
+            pdfData: pdfData,
+            cropsToInk: isCanvas,
+            images: Dictionary(attachments.map { ($0.id, $0.data) }, uniquingKeysWith: { first, _ in first })
+        )
     }
 }
 
@@ -42,9 +50,10 @@ nonisolated enum NotebookPDFRenderer {
     private static let inkScale: CGFloat = 3
 
     /// The inked part of a board, with a margin, at least a page in size.
-    private static func inkArea(of drawing: PKDrawing, textBoxes: [TextBox], on boardSize: CGSize) -> CGRect {
+    private static func inkArea(of drawing: PKDrawing, textBoxes: [TextBox], items: [BoardItem], on boardSize: CGSize) -> CGRect {
         let minimum = PageLayout.standardPageSize
         var area = textBoxes.reduce(drawing.bounds) { $0.union($1.frame) }
+        area = items.reduce(area) { $0.union($1.frame) }
         if area.isNull || area.isEmpty {
             area = CGRect(x: boardSize.width / 2, y: boardSize.height / 2, width: 0, height: 0)
         }
@@ -62,13 +71,14 @@ nonisolated enum NotebookPDFRenderer {
         return UIGraphicsPDFRenderer(bounds: .zero).pdfData { context in
             for spec in snapshot.pages {
                 let drawing = spec.drawing
-                let area = snapshot.cropsToInk ? inkArea(of: drawing, textBoxes: spec.textBoxes, on: spec.size) : CGRect(origin: .zero, size: spec.size)
+                let area = snapshot.cropsToInk ? inkArea(of: drawing, textBoxes: spec.textBoxes, items: spec.items, on: spec.size) : CGRect(origin: .zero, size: spec.size)
                 let pageRect = CGRect(origin: .zero, size: area.size)
                 context.beginPage(withBounds: pageRect, pageInfo: [:])
                 context.cgContext.saveGState()
                 context.cgContext.clip(to: pageRect)
                 context.cgContext.translateBy(x: -area.minX, y: -area.minY)
                 PageRenderer.drawBackground(of: spec, paperColor: snapshot.paperColor, pdf: pdf, in: context.cgContext)
+                PageRenderer.drawItems(spec.items, images: snapshot.images, in: context.cgContext)
                 context.cgContext.restoreGState()
                 if !drawing.strokes.isEmpty {
                     drawing.image(from: area, scale: inkScale, style: inkStyle).draw(in: pageRect)

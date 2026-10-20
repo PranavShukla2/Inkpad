@@ -13,6 +13,7 @@ nonisolated struct PageSpec: Sendable {
     var pdfPageIndex: Int?
     var drawingData: Data?
     var textBoxes: [TextBox] = []
+    var items: [BoardItem] = []
 
     var drawing: PKDrawing {
         drawingData.flatMap { try? PKDrawing(data: $0) } ?? PKDrawing()
@@ -26,6 +27,14 @@ nonisolated enum PageRenderer {
             drawPDFPage(page, size: spec.size, in: context)
         } else {
             PaperRenderer.draw(spec.paperStyle, color: paperColor, in: context, size: spec.size)
+        }
+    }
+
+    /// Draws sticky notes, shapes, photos and graphs, beneath the ink.
+    static func drawItems(_ items: [BoardItem], images: [UUID: Data], in context: CGContext) {
+        for item in items {
+            let image = item.imageID.flatMap { images[$0] }.flatMap(UIImage.init(data:))
+            BoardItemRenderer.draw(item, image: image, in: item.frame, context: context, drawsShadow: true)
         }
     }
 
@@ -57,7 +66,7 @@ nonisolated enum PageRenderer {
         return page.rotationAngle % 180 == 0 ? box : CGSize(width: box.height, height: box.width)
     }
 
-    static func image(of spec: PageSpec, paperColor: PaperColor, pdf: CGPDFDocument?, width: CGFloat) -> UIImage {
+    static func image(of spec: PageSpec, paperColor: PaperColor, pdf: CGPDFDocument?, width: CGFloat, images: [UUID: Data] = [:]) -> UIImage {
         let scale = width / spec.size.width
         let size = CGSize(width: width, height: spec.size.height * scale)
         let pageRect = CGRect(origin: .zero, size: spec.size)
@@ -70,6 +79,7 @@ nonisolated enum PageRenderer {
         return UIGraphicsImageRenderer(size: size).image { context in
             context.cgContext.scaleBy(x: scale, y: scale)
             drawBackground(of: spec, paperColor: paperColor, pdf: pdf, in: context.cgContext)
+            drawItems(spec.items, images: images, in: context.cgContext)
             ink.draw(in: pageRect)
             drawTextBoxes(spec.textBoxes, onDarkPaper: paperColor.isDark, in: context.cgContext)
         }
