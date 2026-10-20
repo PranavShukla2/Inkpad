@@ -28,7 +28,8 @@ nonisolated struct PageLayout: Sendable {
     static let gap: CGFloat = 24
     static let sideMargin: CGFloat = 10
     static let topMargin: CGFloat = 12
-    static let bottomMargin: CGFloat = 40
+    /// Room after the last page for the Add Page button.
+    static let endMargin: CGFloat = 120
 
     let axis: ScrollAxis
     let frames: [CGRect]
@@ -48,7 +49,7 @@ nonisolated struct PageLayout: Sendable {
                 frames.append(CGRect(x: (width - size.width) / 2, y: y, width: size.width, height: size.height))
                 y += size.height + PageLayout.gap
             }
-            contentSize = CGSize(width: width, height: y - PageLayout.gap + PageLayout.bottomMargin)
+            contentSize = CGSize(width: width, height: y - PageLayout.gap + PageLayout.endMargin)
         case .horizontal:
             let height = maxHeight + PageLayout.topMargin * 2
             var x = PageLayout.sideMargin
@@ -56,7 +57,7 @@ nonisolated struct PageLayout: Sendable {
                 frames.append(CGRect(x: x, y: (height - size.height) / 2, width: size.width, height: size.height))
                 x += size.width + PageLayout.gap
             }
-            contentSize = CGSize(width: x - PageLayout.gap + PageLayout.sideMargin, height: height)
+            contentSize = CGSize(width: x - PageLayout.gap + PageLayout.endMargin, height: height)
         }
         self.frames = frames
     }

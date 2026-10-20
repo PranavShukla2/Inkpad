@@ -54,8 +54,7 @@ final class NotebookEditorModel {
         }
         if !notebook.isCanvas {
             canvas.onAddPageRequested = { [weak self] in
-                guard let self else { return }
-                insertPage(at: pages.count)
+                self?.appendPage()
             }
         }
         reloadCanvas(scrollTo: currentPageIndex)
@@ -204,7 +203,25 @@ final class NotebookEditorModel {
         canvas?.scrollToPage(index, animated: true)
     }
 
+    /// Adds a page at the end in place, so the canvas doesn't reload or jump.
+    func appendPage() {
+        saveNow()
+        let style = pages.last.map { $0.pdfPageIndex == nil ? $0.paperStyle : notebook.paperStyle } ?? notebook.paperStyle
+        let page = notebook.insertPage(at: pages.count, paperStyle: style)
+        notebook.updatedAt = .now
+        pages = notebook.sortedPages
+        savedSignatures.append(PKDrawing().contentSignature)
+        let appended = canvas?.appendPage(page.spec, paperColor: notebook.paperColor, pdf: pdf) ?? false
+        if !appended {
+            reloadCanvas(scrollTo: pages.count - 1)
+        }
+    }
+
     func addPage(after index: Int? = nil) {
+        if (index ?? currentPageIndex) == pages.count - 1 {
+            appendPage()
+            return
+        }
         insertPage(at: (index ?? currentPageIndex) + 1)
     }
 

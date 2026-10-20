@@ -51,6 +51,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private let ruler = RulerView()
     private var isRulerVisible = false
     private let rulerControls = RulerControlsView()
+    private let addPageButton = AddPageButton()
     private let pullIndicator = PullToAddView()
     private let pullThreshold: CGFloat = 90
     private var isPullArmed = false
@@ -100,6 +101,11 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
         addGestureRecognizer(laserRecognizer)
 
+        addPageButton.addAction(UIAction { [weak self] _ in
+            self?.onAddPageRequested?()
+        }, for: .primaryActionTriggered)
+        addSubview(addPageButton)
+
         pullIndicator.alpha = 0
         addSubview(pullIndicator)
 
@@ -129,13 +135,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         pendingViewport = keepViewport ? (canvasView.zoomScale, canvasView.contentOffset) : nil
         canvasView.alwaysBounceHorizontal = isBoard
 
-        backgrounds = specs.map { spec in
-            if let pdfPageIndex = spec.pdfPageIndex, let page = pdf?.page(at: pdfPageIndex + 1) {
-                .pdf(page)
-            } else {
-                .paper(spec.paperStyle, paperColor)
-            }
-        }
+        backgrounds = specs.map { Self.background(for: $0, paperColor: paperColor, pdf: pdf) }
         layout = PageLayout(sizes: specs.map(\.size), axis: axis)
         canvasView.overrideUserInterfaceStyle = paperColor.isDark ? .dark : .light
         canvasView.alwaysBounceVertical = axis == .vertical || isBoard
@@ -155,6 +155,31 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         pendingScrollIndex = keepViewport ? nil : pageIndex
         setNeedsLayout()
         layoutIfNeeded()
+    }
+
+    private static func background(for spec: PageSpec, paperColor: PaperColor, pdf: CGPDFDocument?) -> PageBackground {
+        if let pdfPageIndex = spec.pdfPageIndex, let page = pdf?.page(at: pdfPageIndex + 1) {
+            .pdf(page)
+        } else {
+            .paper(spec.paperStyle, paperColor)
+        }
+    }
+
+    /// Adds a page after the last one without reloading, keeping the ink, undo
+    /// history and zoom, then glides to it. Returns false if the existing pages
+    /// would have to move (a wider page), in which case the caller reloads.
+    func appendPage(_ spec: PageSpec, paperColor: PaperColor, pdf: CGPDFDocument?) -> Bool {
+        let newLayout = PageLayout(sizes: layout.frames.map(\.size) + [spec.size], axis: layout.axis)
+        guard Array(newLayout.frames.dropLast()) == layout.frames else { return false }
+        layout = newLayout
+        backgrounds.append(Self.background(for: spec, paperColor: paperColor, pdf: pdf))
+        pagesContainer.bounds = CGRect(origin: .zero, size: layout.contentSize)
+        updateContentSize()
+        updateVisiblePages()
+        layoutAddPageButton()
+        haptics.impactOccurred()
+        scrollToPage(layout.frames.count - 1, animated: true)
+        return true
     }
 
     /// Enlarges a canvas board in place, keeping the ink, undo history and view.
@@ -307,6 +332,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
         updateVisiblePages()
         layoutPullIndicator()
+        layoutAddPageButton()
     }
 
     private func fittingScale() -> CGFloat {
@@ -392,6 +418,29 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             currentPageIndex = pageIndex
             onCurrentPageChanged?(pageIndex)
         }
+    }
+
+    // MARK: - Adding pages
+
+    /// Keeps the Add Page button just after the last page as you scroll and zoom.
+    private func layoutAddPageButton() {
+        guard !isBoard, onAddPageRequested != nil, let last = layout.frames.last else {
+            addPageButton.isHidden = true
+            return
+        }
+        let zoom = canvasView.zoomScale
+        let offset = canvasView.contentOffset
+        let size = addPageButton.sizeThatFits(bounds.size)
+        let center: CGPoint
+        switch layout.axis {
+        case .vertical:
+            center = CGPoint(x: last.midX * zoom - offset.x, y: (last.maxY + PageLayout.endMargin / 2) * zoom - offset.y)
+        case .horizontal:
+            center = CGPoint(x: (last.maxX + PageLayout.endMargin / 2) * zoom - offset.x, y: last.midY * zoom - offset.y)
+        }
+        addPageButton.bounds = CGRect(origin: .zero, size: size)
+        addPageButton.center = center
+        addPageButton.isHidden = !bounds.insetBy(dx: -size.width, dy: -size.height).contains(center)
     }
 
     // MARK: - Pull to add a page
@@ -521,11 +570,13 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         updateVisiblePages()
         updatePullIndicator()
+        layoutAddPageButton()
     }
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         updateContentSize()
         updateVisiblePages()
+        layoutAddPageButton()
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
@@ -560,6 +611,46 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
         onPencilTap?(UIPencilInteraction.preferredTapAction)
+    }
+}
+
+/// A dashed "+ Add Page" button that sits after the last page.
+private final class AddPageButton: UIButton {
+    private let dashes = CAShapeLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(systemName: "plus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold))
+        configuration.imagePadding = 8
+        configuration.attributedTitle = AttributedString("Add Page", attributes: AttributeContainer([.font: UIFont.systemFont(ofSize: 15, weight: .semibold)]))
+        configuration.baseForegroundColor = Palette.inkSecondary
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22)
+        self.configuration = configuration
+        dashes.fillColor = Palette.deskRaised.withAlphaComponent(0.6).cgColor
+        dashes.strokeColor = Palette.inkSecondary.withAlphaComponent(0.5).cgColor
+        dashes.lineWidth = 1.5
+        dashes.lineDashPattern = [6, 5]
+        layer.insertSublayer(dashes, at: 0)
+        accessibilityLabel = "Add Page"
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        dashes.frame = bounds
+        dashes.path = UIBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), cornerRadius: bounds.height / 2).cgPath
+    }
+
+    override var isHighlighted: Bool {
+        didSet {
+            UIView.animate(withDuration: 0.15) {
+                self.transform = self.isHighlighted ? CGAffineTransform(scaleX: 0.95, y: 0.95) : .identity
+            }
+        }
     }
 }
 

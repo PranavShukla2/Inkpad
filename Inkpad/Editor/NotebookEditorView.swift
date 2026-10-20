@@ -103,6 +103,10 @@ struct NotebookEditorView: View {
             if UserDefaults.standard.bool(forKey: "showPages") {
                 showPages()
             }
+            if UserDefaults.standard.bool(forKey: "scrollToEnd") {
+                try? await Task.sleep(for: .seconds(1))
+                model.scrollToPage(model.pages.count - 1)
+            }
             if UserDefaults.standard.bool(forKey: "convertText") {
                 isConvertingToText = true
             }
