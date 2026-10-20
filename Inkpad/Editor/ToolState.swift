@@ -30,7 +30,7 @@ enum InkTool: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .pen: "pencil.tip"
-        case .fountain: "fountainpen.tip"
+        case .fountain: "signature"
         case .pencil: "pencil"
         case .highlighter: "highlighter"
         case .eraser: "eraser"
