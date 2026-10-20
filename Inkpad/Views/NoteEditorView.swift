@@ -24,5 +24,14 @@ struct NoteEditorView: View {
         .navigationTitle($note.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarRole(.editor)
+        .task(id: note.updatedAt) {
+            // Refresh the sidebar preview once the user pauses writing.
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            note.updateThumbnail()
+        }
+        .onDisappear {
+            note.updateThumbnail()
+        }
     }
 }

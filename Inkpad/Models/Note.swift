@@ -12,6 +12,7 @@ final class Note {
     var createdAt: Date
     var updatedAt: Date
     @Attribute(.externalStorage) var drawingData: Data?
+    @Attribute(.externalStorage) var thumbnailData: Data?
 
     static let defaultTitle = "Untitled"
 
