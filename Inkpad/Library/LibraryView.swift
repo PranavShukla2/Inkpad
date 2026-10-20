@@ -5,6 +5,7 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 enum LibrarySection: Hashable {
     case all
@@ -42,6 +43,8 @@ struct LibraryView: View {
     @State private var notebookBeingRenamed: Notebook?
     @State private var renameText = ""
     @State private var notebookToDelete: Notebook?
+    @State private var isImportingPDF = false
+    @State private var importErrorMessage: String?
     @Namespace private var transitionNamespace
 
     var body: some View {
@@ -164,11 +167,25 @@ struct LibraryView: View {
                     Label("Sort", systemImage: "arrow.up.arrow.down")
                 }
                 Button {
+                    isImportingPDF = true
+                } label: {
+                    Label("Import PDF", systemImage: "doc.badge.arrow.up")
+                }
+                Button {
                     isCreatingNotebook = true
                 } label: {
                     Label("New Notebook", systemImage: "plus")
                 }
             }
+        }
+        .fileImporter(isPresented: $isImportingPDF, allowedContentTypes: [.pdf], onCompletion: importPDF)
+        .alert(
+            "Couldn't Import PDF",
+            isPresented: Binding(get: { importErrorMessage != nil }, set: { if !$0 { importErrorMessage = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importErrorMessage ?? "")
         }
     }
 
@@ -240,7 +257,12 @@ struct LibraryView: View {
             } description: {
                 Text(emptyMessage)
             } actions: {
-                if section == .all || section == nil {
+                if section == .documents {
+                    Button("Import PDF") {
+                        isImportingPDF = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else if section == .all || section == nil {
                     Button("New Notebook") {
                         isCreatingNotebook = true
                     }
@@ -305,6 +327,15 @@ struct LibraryView: View {
 
     private var isDeleting: Binding<Bool> {
         Binding(get: { notebookToDelete != nil }, set: { if !$0 { notebookToDelete = nil } })
+    }
+
+    private func importPDF(_ result: Result<URL, Error>) {
+        do {
+            let notebook = try PDFImporter.makeNotebook(from: result.get(), in: modelContext)
+            openNotebook = notebook
+        } catch {
+            importErrorMessage = error.localizedDescription
+        }
     }
 
     private func openCreatedNotebook() {
