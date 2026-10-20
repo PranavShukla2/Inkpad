@@ -27,6 +27,11 @@ struct NoteEditorView: View {
             .navigationTitle($note.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarRole(.editor)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(item: export, preview: SharePreview(note.displayTitle))
+                }
+            }
             .task(id: note.updatedAt) {
                 // Refresh the sidebar preview once the user pauses writing.
                 try? await Task.sleep(for: .seconds(1))
@@ -36,6 +41,15 @@ struct NoteEditorView: View {
             .onDisappear {
                 note.updateThumbnail()
             }
+    }
+
+    private var export: NoteExport {
+        NoteExport(
+            title: note.displayTitle,
+            drawingData: note.drawingData,
+            pdfData: note.pdfData,
+            pageDrawingsData: note.pageDrawingsData
+        )
     }
 
     @ViewBuilder
