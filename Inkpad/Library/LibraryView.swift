@@ -11,6 +11,7 @@ enum LibrarySection: Hashable {
     case all
     case favorites
     case documents
+    case canvases
     case folder(Folder)
 }
 
@@ -62,15 +63,20 @@ struct LibraryView: View {
         }
         .tint(Theme.stamp)
         .sheet(isPresented: $isCreatingNotebook, onDismiss: openCreatedNotebook) {
-            NewNotebookSheet { title, cover, paperStyle, paperColor, pageSize in
-                let notebook = Notebook.create(
-                    in: modelContext,
-                    title: title,
-                    cover: cover,
-                    paperStyle: paperStyle,
-                    paperColor: paperColor,
-                    pageSize: pageSize
-                )
+            NewNotebookSheet { kind, title, cover, paperStyle, paperColor, pageSize in
+                let notebook = switch kind {
+                case .notebook:
+                    Notebook.create(
+                        in: modelContext,
+                        title: title,
+                        cover: cover,
+                        paperStyle: paperStyle,
+                        paperColor: paperColor,
+                        pageSize: pageSize
+                    )
+                case .canvas:
+                    Notebook.createCanvas(in: modelContext, title: title, cover: cover, paperStyle: paperStyle, paperColor: paperColor)
+                }
                 notebook.folder = selectedFolder
                 notebookToOpenAfterSheet = notebook
             }
@@ -162,6 +168,8 @@ struct LibraryView: View {
                 .tag(LibrarySection.favorites)
             Label("Documents", systemImage: "doc.richtext")
                 .tag(LibrarySection.documents)
+            Label("Canvases", systemImage: "square.dashed")
+                .tag(LibrarySection.canvases)
 
             Section {
                 ForEach(folders) { folder in
@@ -271,6 +279,7 @@ struct LibraryView: View {
                     cover: notebook.cover,
                     coverImageData: notebook.coverImageData,
                     isPDF: notebook.isPDF,
+                    isCanvas: notebook.isCanvas,
                     isFavorite: notebook.isFavorite
                 )
             }
@@ -382,6 +391,7 @@ struct LibraryView: View {
             case .all: true
             case .favorites: notebook.isFavorite
             case .documents: notebook.isPDF
+            case .canvases: notebook.isCanvas
             case .folder(let folder): notebook.folder == folder
             }
         }
@@ -420,6 +430,7 @@ struct LibraryView: View {
         case .all: "All Notebooks"
         case .favorites: "Favourites"
         case .documents: "Documents"
+        case .canvases: "Canvases"
         case .folder(let folder): folder.name
         }
     }
@@ -429,6 +440,7 @@ struct LibraryView: View {
         case .all: "Your shelf is empty"
         case .favorites: "No favourites yet"
         case .documents: "No documents yet"
+        case .canvases: "No canvases yet"
         case .folder: "This folder is empty"
         }
     }
@@ -438,6 +450,7 @@ struct LibraryView: View {
         case .all: "Create a notebook to start writing."
         case .favorites: "Long-press a notebook and add it to your favourites."
         case .documents: "Imported PDFs appear here."
+        case .canvases: "Create a canvas for an endless board to sketch and plan on."
         case .folder: "Long-press a notebook and choose Move to Folder."
         }
     }

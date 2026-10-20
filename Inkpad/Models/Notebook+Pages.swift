@@ -24,6 +24,26 @@ extension Notebook {
         return notebook
     }
 
+    /// Starting size of a canvas board; it grows as you draw near the edges.
+    static let canvasStartSize = CGSize(width: 2048, height: 2048)
+    static let canvasGrowth: CGFloat = 1024
+
+    static func createCanvas(
+        in context: ModelContext,
+        title: String,
+        cover: CoverStyle,
+        paperStyle: PaperStyle,
+        paperColor: PaperColor
+    ) -> Notebook {
+        let notebook = Notebook(title: title, cover: cover, paperStyle: paperStyle, paperColor: paperColor)
+        notebook.kind = .canvas
+        notebook.pageWidth = canvasStartSize.width
+        notebook.pageHeight = canvasStartSize.height
+        context.insert(notebook)
+        notebook.insertPage(at: 0)
+        return notebook
+    }
+
     /// New pages use the notebook's page size, or match the width of a PDF's pages.
     var newPageSize: CGSize {
         if isPDF, let last = sortedPages.last {

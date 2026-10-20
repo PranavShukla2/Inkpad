@@ -39,6 +39,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private var appliedToolKey: String?
     /// A page to show once the view has a size.
     private var pendingScrollIndex: Int?
+    /// A canvas board: one big page you zoom around, rather than pages to flip.
+    private var isBoard = false
+    /// Zoom and position to restore after reloading, so a growing board doesn't jump.
+    private var pendingViewport: (zoom: CGFloat, offset: CGPoint)?
 
     private let pullIndicator = PullToAddView()
     private let pullThreshold: CGFloat = 90
@@ -78,9 +82,20 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     // MARK: - Content
 
-    func load(specs: [PageSpec], paperColor: PaperColor, pdf: CGPDFDocument?, axis: ScrollAxis, scrollTo pageIndex: Int? = nil) {
+    func load(
+        specs: [PageSpec],
+        paperColor: PaperColor,
+        pdf: CGPDFDocument?,
+        axis: ScrollAxis,
+        isBoard: Bool = false,
+        scrollTo pageIndex: Int? = nil,
+        keepViewport: Bool = false
+    ) {
         isLoading = true
         defer { isLoading = false }
+        self.isBoard = isBoard
+        pendingViewport = keepViewport ? (canvasView.zoomScale, canvasView.contentOffset) : nil
+        canvasView.alwaysBounceHorizontal = isBoard
 
         backgrounds = specs.map { spec in
             if let pdfPageIndex = spec.pdfPageIndex, let page = pdf?.page(at: pdfPageIndex + 1) {
@@ -91,8 +106,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
         layout = PageLayout(sizes: specs.map(\.size), axis: axis)
         canvasView.overrideUserInterfaceStyle = paperColor.isDark ? .dark : .light
-        canvasView.alwaysBounceVertical = axis == .vertical
-        canvasView.alwaysBounceHorizontal = axis == .horizontal
+        canvasView.alwaysBounceVertical = axis == .vertical || isBoard
+        canvasView.alwaysBounceHorizontal = axis == .horizontal || isBoard
         canvasView.decelerationRate = axis == .horizontal ? .fast : .normal
         pullIndicator.axis = axis
 
@@ -105,9 +120,24 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         strokeCount = canvasView.drawing.strokes.count
 
         fitScale = 0
-        pendingScrollIndex = pageIndex
+        pendingScrollIndex = keepViewport ? nil : pageIndex
         setNeedsLayout()
         layoutIfNeeded()
+    }
+
+    /// Enlarges a canvas board in place, keeping the ink, undo history and view.
+    func resizeBoard(to size: CGSize) {
+        guard isBoard else { return }
+        let offset = canvasView.contentOffset
+        layout = PageLayout(sizes: [size], axis: layout.axis)
+        pagesContainer.bounds = CGRect(origin: .zero, size: layout.contentSize)
+        slots.values.forEach { $0.removeFromSuperview() }
+        slots = [:]
+        fitScale = fittingScale()
+        canvasView.minimumZoomScale = fitScale
+        updateContentSize()
+        canvasView.contentOffset = offset
+        updateVisiblePages()
     }
 
     /// The current ink, one drawing per page in page coordinates.
@@ -164,13 +194,25 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         // Zoomed all the way out, a page fills the width (or, side by side, the screen).
         let newFitScale = fittingScale()
         if newFitScale != fitScale {
+            let wasFresh = fitScale == 0
             let relativeZoom = fitScale > 0 ? canvasView.zoomScale / fitScale : 1
             fitScale = newFitScale
             canvasView.minimumZoomScale = newFitScale
-            canvasView.maximumZoomScale = newFitScale * 5
-            canvasView.zoomScale = newFitScale * max(1, relativeZoom)
+            canvasView.maximumZoomScale = isBoard ? 4 : newFitScale * 5
+            if let pendingViewport {
+                canvasView.zoomScale = min(max(pendingViewport.zoom, newFitScale), canvasView.maximumZoomScale)
+            } else if isBoard && wasFresh {
+                // Open boards at a comfortable writing size, not zoomed all the way out.
+                canvasView.zoomScale = max(newFitScale, min(1, bounds.width / 900))
+            } else {
+                canvasView.zoomScale = newFitScale * max(1, relativeZoom)
+            }
         }
         updateContentSize()
+        if let pendingViewport {
+            self.pendingViewport = nil
+            canvasView.contentOffset = pendingViewport.offset
+        }
         if let pendingScrollIndex {
             self.pendingScrollIndex = nil
             scrollToPage(pendingScrollIndex, animated: false)
@@ -180,6 +222,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     }
 
     private func fittingScale() -> CGFloat {
+        if isBoard {
+            // Zoomed all the way out, the whole board is visible.
+            return min(bounds.width / layout.contentSize.width, (bounds.height - topInset) / layout.contentSize.height)
+        }
         switch layout.axis {
         case .vertical:
             return bounds.width / layout.contentSize.width
@@ -208,7 +254,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         let content = canvasView.contentSize
         let availableHeight = bounds.height - topInset
         var horizontal = max(0, (bounds.width - content.width) / 2)
-        if layout.axis == .horizontal {
+        if layout.axis == .horizontal && !isBoard {
             let pageWidth = (layout.maxPageSize.width + PageLayout.sideMargin * 2) * zoom
             horizontal = max(horizontal, (bounds.width - pageWidth) / 2)
         }
@@ -275,7 +321,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     }
 
     private func updatePullIndicator() {
-        guard onAddPageRequested != nil, canvasView.isDragging else {
+        guard onAddPageRequested != nil, !isBoard, canvasView.isDragging else {
             if !isPullArmed {
                 pullIndicator.alpha = 0
             }
@@ -355,7 +401,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     /// Side by side and zoomed out, pages snap into place one at a time.
     func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
-        guard layout.axis == .horizontal, canvasView.zoomScale <= fitScale * 1.02, !isPullArmed else { return }
+        guard layout.axis == .horizontal, !isBoard, canvasView.zoomScale <= fitScale * 1.02, !isPullArmed else { return }
         var target = currentPageIndex
         if velocity.x > 0.25 {
             target = dragStartPageIndex + 1

@@ -52,9 +52,11 @@ final class NotebookEditorModel {
         canvas.onCurrentPageChanged = { [weak self] index in
             self?.currentPageIndex = index
         }
-        canvas.onAddPageRequested = { [weak self] in
-            guard let self else { return }
-            insertPage(at: pages.count)
+        if !notebook.isCanvas {
+            canvas.onAddPageRequested = { [weak self] in
+                guard let self else { return }
+                insertPage(at: pages.count)
+            }
         }
         reloadCanvas(scrollTo: currentPageIndex)
     }
@@ -122,7 +124,27 @@ final class NotebookEditorModel {
         if !changedPages.isEmpty {
             notebook.updatedAt = .now
             scheduleRecognition(for: changedPages)
+            growBoardIfNeeded()
         }
+    }
+
+    /// Canvas boards grow right and down when ink gets near an edge.
+    private func growBoardIfNeeded() {
+        guard notebook.isCanvas, let page = pages.first, let canvas else { return }
+        let bounds = canvas.pageDrawings().first?.bounds ?? .null
+        guard !bounds.isNull else { return }
+        let margin = Notebook.canvasGrowth / 2
+        var size = page.size
+        if bounds.maxX > size.width - margin {
+            size.width += Notebook.canvasGrowth
+        }
+        if bounds.maxY > size.height - margin {
+            size.height += Notebook.canvasGrowth
+        }
+        guard size != page.size else { return }
+        page.width = size.width
+        page.height = size.height
+        canvas.resizeBoard(to: size)
     }
 
     /// Reads handwriting a couple of seconds after writing stops.
@@ -258,14 +280,23 @@ final class NotebookEditorModel {
         saveNow()
         change()
         notebook.updatedAt = .now
-        reloadCanvas(scrollTo: index)
+        // Boards stay where you were looking; notebooks jump to the affected page.
+        reloadCanvas(scrollTo: index, keepViewport: notebook.isCanvas)
     }
 
-    private func reloadCanvas(scrollTo index: Int) {
+    private func reloadCanvas(scrollTo index: Int, keepViewport: Bool = false) {
         layoutVersion += 1
         pages = notebook.sortedPages
         currentPageIndex = min(max(index, 0), max(pages.count - 1, 0))
-        canvas?.load(specs: pages.map(\.spec), paperColor: notebook.paperColor, pdf: pdf, axis: scrollAxis, scrollTo: currentPageIndex)
+        canvas?.load(
+            specs: pages.map(\.spec),
+            paperColor: notebook.paperColor,
+            pdf: pdf,
+            axis: scrollAxis,
+            isBoard: notebook.isCanvas,
+            scrollTo: currentPageIndex,
+            keepViewport: keepViewport
+        )
         // Fingerprint through the same split that saves use, so untouched pages match.
         savedSignatures = canvas?.pageDrawings().map(\.contentSignature) ?? []
         updateUndoState()

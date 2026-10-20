@@ -7,6 +7,7 @@ import SwiftUI
 
 struct NewNotebookSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var kind = NotebookKind.notebook
     @State private var title = ""
     @State private var cover = CoverStyle.allCases.randomElement() ?? .ink
     @State private var paperStyle = PaperStyle.lined
@@ -14,16 +15,24 @@ struct NewNotebookSheet: View {
     @State private var pageSize = PageSizeOption.fitScreen
     @FocusState private var isTitleFocused: Bool
 
-    let onCreate: (String, CoverStyle, PaperStyle, PaperColor, CGSize) -> Void
+    let onCreate: (NotebookKind, String, CoverStyle, PaperStyle, PaperColor, CGSize) -> Void
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
+                    Picker("Type", selection: $kind) {
+                        Label("Notebook", systemImage: "book.closed").tag(NotebookKind.notebook)
+                        Label("Canvas", systemImage: "square.dashed").tag(NotebookKind.canvas)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 360)
+
                     HStack(alignment: .top, spacing: 28) {
-                        NotebookCoverView(title: displayTitle, cover: cover)
+                        NotebookCoverView(title: displayTitle, cover: cover, isCanvas: kind == .canvas)
                             .frame(width: 150)
                             .animation(.snappy, value: cover)
+                            .animation(.snappy, value: kind)
 
                         VStack(alignment: .leading, spacing: 18) {
                             TextField("Notebook title", text: $title)
@@ -61,7 +70,7 @@ struct NewNotebookSheet: View {
 
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Text("Paper")
+                            Text(kind == .canvas ? "Background" : "Paper")
                                 .font(.serif(.headline))
                             Spacer()
                             Picker("Paper Colour", selection: $paperColor) {
@@ -73,12 +82,18 @@ struct NewNotebookSheet: View {
                             .frame(maxWidth: 260)
                         }
 
-                        Picker("Page Size", selection: $pageSize) {
-                            ForEach(PageSizeOption.allCases) { option in
-                                Text(option.name).tag(option)
+                        if kind == .notebook {
+                            Picker("Page Size", selection: $pageSize) {
+                                ForEach(PageSizeOption.allCases) { option in
+                                    Text(option.name).tag(option)
+                                }
                             }
+                            .pickerStyle(.segmented)
+                        } else {
+                            Text("A canvas is one endless board that grows as you draw.")
+                                .font(.footnote)
+                                .foregroundStyle(Theme.inkSecondary)
                         }
-                        .pickerStyle(.segmented)
 
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96, maximum: 120), spacing: 18)], spacing: 18) {
                             ForEach(PaperStyle.allCases) { style in
@@ -106,7 +121,11 @@ struct NewNotebookSheet: View {
                 .padding(28)
             }
             .background(Theme.desk)
-            .navigationTitle("New Notebook")
+            .navigationTitle(kind == .canvas ? "New Canvas" : "New Notebook")
+            .onChange(of: kind) { _, kind in
+                // Boards read best on a dot grid; notebooks default to lines.
+                paperStyle = kind == .canvas ? .dots : .lined
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -116,7 +135,7 @@ struct NewNotebookSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        onCreate(displayTitle, cover, paperStyle, paperColor, pageSize.size(forScreen: screenSize))
+                        onCreate(kind, displayTitle, cover, paperStyle, paperColor, pageSize.size(forScreen: screenSize))
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -135,6 +154,7 @@ struct NewNotebookSheet: View {
 
     private var displayTitle: String {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? Notebook.defaultTitle : trimmed
+        guard trimmed.isEmpty else { return trimmed }
+        return kind == .canvas ? "Untitled Canvas" : Notebook.defaultTitle
     }
 }

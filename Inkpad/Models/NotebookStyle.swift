@@ -5,6 +5,22 @@
 
 import UIKit
 
+nonisolated enum NotebookKind: String, CaseIterable, Identifiable, Sendable {
+    /// Pages you flip through.
+    case notebook
+    /// One endless board that grows as you draw.
+    case canvas
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .notebook: "Notebook"
+        case .canvas: "Canvas"
+        }
+    }
+}
+
 nonisolated enum PaperStyle: String, CaseIterable, Identifiable, Codable, Sendable {
     case blank
     case lined

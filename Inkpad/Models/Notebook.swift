@@ -16,6 +16,7 @@ final class Notebook {
     var paperColorRaw: String
     var isFavorite: Bool = false
     var currentPageIndex: Int = 0
+    var kindRaw: String = NotebookKind.notebook.rawValue
     /// Size for new pages; zero means the standard A4 size.
     var pageWidth: Double = 0
     var pageHeight: Double = 0
@@ -61,6 +62,13 @@ final class Notebook {
     }
 
     var isPDF: Bool { pdfData != nil }
+
+    var kind: NotebookKind {
+        get { NotebookKind(rawValue: kindRaw) ?? .notebook }
+        set { kindRaw = newValue.rawValue }
+    }
+
+    var isCanvas: Bool { kind == .canvas }
 
     var displayTitle: String {
         title.trimmingCharacters(in: .whitespaces).isEmpty ? Notebook.defaultTitle : title

@@ -44,7 +44,9 @@ struct NotebookEditorView: View {
                 VStack(spacing: 0) {
                     topBar
                     Spacer(minLength: 0)
-                    pageIndicator
+                    if !model.notebook.isCanvas {
+                        pageIndicator
+                    }
                 }
             }
         }
@@ -152,11 +154,13 @@ struct NotebookEditorView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Export PDF")
-            BarButton(symbol: "square.grid.2x2", label: "Pages") {
-                showPages()
-            }
-            BarButton(symbol: "doc.badge.plus", label: "Add Page") {
-                model.addPage()
+            if !model.notebook.isCanvas {
+                BarButton(symbol: "square.grid.2x2", label: "Pages") {
+                    showPages()
+                }
+                BarButton(symbol: "doc.badge.plus", label: "Add Page") {
+                    model.addPage()
+                }
             }
             moreMenu
         }
@@ -175,7 +179,7 @@ struct NotebookEditorView: View {
     private var moreMenu: some View {
         @Bindable var tools = tools
         return Menu {
-            if let page = model.currentPage, page.pdfPageIndex == nil {
+            if let page = model.currentPage, page.pdfPageIndex == nil, !model.notebook.isCanvas {
                 Picker("This Page", selection: Binding(
                     get: { page.paperStyle },
                     set: { model.setPaperStyle($0, forPageAt: model.currentPageIndex) }
@@ -186,7 +190,7 @@ struct NotebookEditorView: View {
                 }
                 .pickerStyle(.menu)
             }
-            Menu("All Pages") {
+            Menu(model.notebook.isCanvas ? "Board Background" : "All Pages") {
                 ForEach(PaperStyle.allCases) { style in
                     Button(style.name) {
                         model.setPaperStyleForAllPages(style)
@@ -205,13 +209,15 @@ struct NotebookEditorView: View {
                 .pickerStyle(.menu)
             }
             Divider()
-            Picker("Scrolling", selection: $tools.scrollAxis) {
-                ForEach(ScrollAxis.allCases) { axis in
-                    Label(axis.name, systemImage: axis == .vertical ? "arrow.up.and.down" : "arrow.left.and.right")
-                        .tag(axis)
+            if !model.notebook.isCanvas {
+                Picker("Scrolling", selection: $tools.scrollAxis) {
+                    ForEach(ScrollAxis.allCases) { axis in
+                        Label(axis.name, systemImage: axis == .vertical ? "arrow.up.and.down" : "arrow.left.and.right")
+                            .tag(axis)
+                    }
                 }
+                .pickerStyle(.menu)
             }
-            .pickerStyle(.menu)
             Toggle("Left-Handed Layout", isOn: $tools.railOnRight)
             Button("Rename…", systemImage: "pencil") {
                 renameText = model.notebook.title
