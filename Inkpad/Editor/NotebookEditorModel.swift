@@ -17,7 +17,8 @@ final class NotebookEditorModel {
     private(set) var canRedo = false
 
     @ObservationIgnored private weak var canvas: NotebookCanvasView?
-    @ObservationIgnored private let pdf: CGPDFDocument?
+    /// The notebook's PDF, if any. Safe to read from background threads.
+    @ObservationIgnored let pdf: CGPDFDocument?
     /// The last data written for each page, to skip unchanged pages.
     @ObservationIgnored private var savedData: [Data?] = []
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -128,12 +129,44 @@ final class NotebookEditorModel {
     }
 
     func addPage(after index: Int? = nil) {
-        let anchor = index ?? currentPageIndex
-        let style = pages.indices.contains(anchor) && pages[anchor].pdfPageIndex == nil
-            ? pages[anchor].paperStyle
-            : notebook.paperStyle
-        changePages(scrollTo: anchor + 1) {
-            notebook.insertPage(at: anchor + 1, paperStyle: style)
+        insertPage(at: (index ?? currentPageIndex) + 1)
+    }
+
+    /// Inserts a blank page using the paper of the page it follows.
+    func insertPage(at index: Int) {
+        let neighbour = pages.indices.contains(index - 1) ? pages[index - 1] : pages.first
+        let style = neighbour.map { $0.pdfPageIndex == nil ? $0.paperStyle : notebook.paperStyle } ?? notebook.paperStyle
+        changePages(scrollTo: index) {
+            notebook.insertPage(at: index, paperStyle: style)
+        }
+    }
+
+    func duplicatePage(at index: Int) {
+        guard pages.indices.contains(index) else { return }
+        changePages(scrollTo: index + 1) {
+            let source = pages[index]
+            let copy = notebook.insertPage(
+                at: index + 1,
+                paperStyle: source.paperStyle,
+                size: source.size,
+                pdfPageIndex: source.pdfPageIndex
+            )
+            copy.drawingData = source.drawingData
+            copy.recognizedText = source.recognizedText
+        }
+    }
+
+    func deletePage(at index: Int) {
+        guard pages.count > 1, pages.indices.contains(index) else { return }
+        changePages(scrollTo: min(index, pages.count - 2)) {
+            notebook.removePage(pages[index])
+        }
+    }
+
+    func movePage(from source: Int, to destination: Int) {
+        guard source != destination else { return }
+        changePages(scrollTo: destination) {
+            notebook.movePage(from: source, to: destination)
         }
     }
 

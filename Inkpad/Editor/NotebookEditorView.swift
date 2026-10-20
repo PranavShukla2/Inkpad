@@ -11,6 +11,7 @@ struct NotebookEditorView: View {
     @Environment(ToolState.self) private var tools
     @State private var model: NotebookEditorModel
     @State private var isRenaming = false
+    @State private var isShowingPages = false
     @State private var renameText = ""
 
     private let topBarHeight: CGFloat = 56
@@ -59,6 +60,16 @@ struct NotebookEditorView: View {
         .onDisappear {
             model.close()
         }
+        #if DEBUG
+        .task {
+            if UserDefaults.standard.bool(forKey: "showPages") {
+                showPages()
+            }
+        }
+        #endif
+        .sheet(isPresented: $isShowingPages) {
+            PageNavigatorView(model: model)
+        }
         .alert("Rename Notebook", isPresented: $isRenaming) {
             TextField("Title", text: $renameText)
             Button("Cancel", role: .cancel) {}
@@ -105,6 +116,9 @@ struct NotebookEditorView: View {
                 .frame(width: 1, height: 22)
                 .padding(.horizontal, 6)
 
+            BarButton(symbol: "square.grid.2x2", label: "Pages") {
+                showPages()
+            }
             BarButton(symbol: "doc.badge.plus", label: "Add Page") {
                 model.addPage()
             }
@@ -169,18 +183,27 @@ struct NotebookEditorView: View {
     // MARK: - Page indicator
 
     private var pageIndicator: some View {
-        Text("\(model.currentPageIndex + 1) of \(model.pages.count)")
-            .font(.serif(.footnote, weight: .medium))
-            .monospacedDigit()
-            .foregroundStyle(Theme.inkSecondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Theme.deskRaised.opacity(0.9), in: Capsule())
-            .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 0.5))
-            .padding(.bottom, 12)
-            .allowsHitTesting(false)
-            .contentTransition(.numericText())
-            .animation(.snappy, value: model.currentPageIndex)
+        Button(action: showPages) {
+            Text("\(model.currentPageIndex + 1) of \(model.pages.count)")
+                .font(.serif(.footnote, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(Theme.inkSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Theme.deskRaised.opacity(0.9), in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 0.5))
+                .contentTransition(.numericText())
+                .animation(.snappy, value: model.currentPageIndex)
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 12)
+        .accessibilityLabel("Page \(model.currentPageIndex + 1) of \(model.pages.count). Show all pages.")
+    }
+
+    private func showPages() {
+        // Thumbnails read saved ink, so write the latest strokes first.
+        model.saveNow()
+        isShowingPages = true
     }
 }
 
