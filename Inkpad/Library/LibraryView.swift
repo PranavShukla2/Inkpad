@@ -157,6 +157,9 @@ struct LibraryView: View {
             if let title = UserDefaults.standard.string(forKey: "customiseCover") {
                 notebookBeingCustomised = notebooks.first { $0.title == title }
             }
+            if UserDefaults.standard.bool(forKey: "importPDF") {
+                isImportingPDF = true
+            }
             if let text = UserDefaults.standard.string(forKey: "searchText") {
                 searchText = text
             }
