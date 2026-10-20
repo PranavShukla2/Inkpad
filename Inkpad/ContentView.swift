@@ -15,6 +15,7 @@ struct ContentView: View {
         } detail: {
             if let selectedNote {
                 NoteEditorView(note: selectedNote)
+                    .id(selectedNote.id)
             } else {
                 ContentUnavailableView(
                     "No Note Selected",
