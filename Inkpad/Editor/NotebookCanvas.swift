@@ -24,6 +24,7 @@ struct NotebookCanvas: UIViewRepresentable {
         canvas.topInset = topInset
         canvas.apply(
             tool: tools.pkTool,
+            key: tools.toolKey,
             isRulerActive: tools.isRulerActive,
             allowsFingerDrawing: tools.allowsFingerDrawing,
             snapsShapes: tools.tool == .shape

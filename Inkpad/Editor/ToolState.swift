@@ -150,6 +150,11 @@ final class ToolState {
         }
     }
 
+    /// Identifies the current tool configuration, so the canvas only swaps tools when it changes.
+    var toolKey: String {
+        "\(tool.rawValue)|\(color.hexString)|\(widthIndex)|\(eraserIsPartial)"
+    }
+
     var pkTool: PKTool {
         let widths = tool.widths
         let width = widths.isEmpty ? 0 : widths[min(widthIndex, widths.count - 1)]

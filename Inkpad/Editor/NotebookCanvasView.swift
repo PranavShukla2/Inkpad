@@ -35,6 +35,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private var snapsShapes = false
     private var isSnapping = false
     private var strokeCount = 0
+    private var appliedToolKey: String?
     /// A page to show once the view has a size.
     private var pendingScrollIndex: Int?
 
@@ -110,12 +111,20 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     // MARK: - Tools
 
-    func apply(tool: PKTool, isRulerActive: Bool, allowsFingerDrawing: Bool, snapsShapes: Bool) {
+    func apply(tool: @autoclosure () -> PKTool, key: String, isRulerActive: Bool, allowsFingerDrawing: Bool, snapsShapes: Bool) {
         self.snapsShapes = snapsShapes
-        canvasView.tool = tool
-        canvasView.isRulerActive = isRulerActive
+        if key != appliedToolKey {
+            appliedToolKey = key
+            canvasView.tool = tool()
+        }
+        if canvasView.isRulerActive != isRulerActive {
+            canvasView.isRulerActive = isRulerActive
+        }
         // With Pencil-only drawing, fingers scroll and zoom.
-        canvasView.drawingPolicy = allowsFingerDrawing ? .anyInput : .pencilOnly
+        let policy: PKCanvasViewDrawingPolicy = allowsFingerDrawing ? .anyInput : .pencilOnly
+        if canvasView.drawingPolicy != policy {
+            canvasView.drawingPolicy = policy
+        }
     }
 
     // MARK: - Layout
