@@ -51,6 +51,13 @@ struct CanvasView: UIViewRepresentable {
             self.onDrawingChanged = onDrawingChanged
         }
 
+        func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+            // Bring the tool picker back if something else took focus.
+            if !canvasView.isFirstResponder {
+                canvasView.becomeFirstResponder()
+            }
+        }
+
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             (canvasView as? GrowingCanvasView)?.updateContentSize()
             onDrawingChanged(canvasView.drawing)
