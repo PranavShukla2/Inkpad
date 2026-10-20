@@ -34,6 +34,7 @@ final class Notebook {
     var folder: Folder?
     @Relationship(deleteRule: .cascade, inverse: \Page.notebook) var pages: [Page] = []
     @Relationship(deleteRule: .cascade, inverse: \Recording.notebook) var recordings: [Recording] = []
+    @Relationship(deleteRule: .cascade, inverse: \Attachment.notebook) var attachments: [Attachment] = []
 
     static let defaultTitle = "Untitled Notebook"
 

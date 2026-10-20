@@ -17,6 +17,8 @@ final class Page {
     @Attribute(.externalStorage) var drawingData: Data?
     /// Typed text boxes on the page, encoded as JSON.
     var textBoxesData: Data?
+    /// Sticky notes, shapes, photos and graphs, encoded as JSON.
+    var itemsData: Data?
     /// Handwriting found on the page, used by search.
     var recognizedText: String = ""
     /// Text from the imported PDF page, used by search.
@@ -39,6 +41,11 @@ final class Page {
         CGSize(width: width, height: height)
     }
 
+    var items: [BoardItem] {
+        get { BoardItem.decode(itemsData) }
+        set { itemsData = BoardItem.encode(newValue) }
+    }
+
     var textBoxes: [TextBox] {
         get { TextBox.decode(textBoxesData) }
         set { textBoxesData = TextBox.encode(newValue) }
@@ -46,7 +53,7 @@ final class Page {
 
     /// Everything typed on the page, for search.
     var typedText: String {
-        textBoxes.map(\.text).joined(separator: "\n")
+        (textBoxes.map(\.text) + items.filter { $0.kind == .sticky }.map(\.text)).joined(separator: "\n")
     }
 
     var paperStyle: PaperStyle {

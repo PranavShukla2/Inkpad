@@ -14,6 +14,7 @@ struct InkpadApp: App {
             Page.self,
             Folder.self,
             Recording.self,
+            Attachment.self,
             // Legacy single-page notes, kept so they can be migrated into notebooks.
             Note.self,
         ])
