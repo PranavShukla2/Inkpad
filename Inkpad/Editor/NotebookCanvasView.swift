@@ -21,6 +21,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     var topInset: CGFloat = 0 {
         didSet {
             guard topInset != oldValue else { return }
+            needsContentLayout = true
             setNeedsLayout()
         }
     }
@@ -31,6 +32,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private var backgrounds: [PageBackground] = []
     private var slots: [Int: PageSlotView] = [:]
     private var fitScale: CGFloat = 0
+    /// Scroll geometry is only recomputed when the size or content changes.
+    /// Touching it during an ordinary layout pass snaps back a pull in progress.
+    private var needsContentLayout = true
+    private var laidOutSize: CGSize = .zero
     private var isLoading = false
     /// Snap new strokes to clean shapes (the Shapes tool).
     private var snapsShapes = false
@@ -53,7 +58,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private let rulerControls = RulerControlsView()
     private let addPageButton = AddPageButton()
     private let pullIndicator = PullToAddView()
-    private let pullThreshold: CGFloat = 90
+    private let pullThreshold: CGFloat = 110
     private var isPullArmed = false
     private var dragStartPageIndex = 0
     private let haptics = UIImpactFeedbackGenerator(style: .medium)
@@ -152,6 +157,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         strokeCount = canvasView.drawing.strokes.count
 
         fitScale = 0
+        needsContentLayout = true
         pendingScrollIndex = keepViewport ? nil : pageIndex
         setNeedsLayout()
         layoutIfNeeded()
@@ -292,9 +298,11 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        canvasView.frame = bounds
-        laserOverlay.frame = bounds
-        ruler.frame = bounds
+        if canvasView.frame != bounds {
+            canvasView.frame = bounds
+            laserOverlay.frame = bounds
+            ruler.frame = bounds
+        }
         let controlsSize = rulerControls.sizeThatFits(bounds.size)
         rulerControls.frame = CGRect(
             x: (bounds.width - controlsSize.width) / 2,
@@ -302,6 +310,16 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             width: controlsSize.width,
             height: controlsSize.height
         )
+        if bounds.size != laidOutSize || needsContentLayout {
+            laidOutSize = bounds.size
+            needsContentLayout = false
+            layoutContent()
+        }
+        layoutPullIndicator()
+        layoutAddPageButton()
+    }
+
+    private func layoutContent() {
         guard bounds.width > 0, layout.contentSize.width > 0 else { return }
 
         // Zoomed all the way out, a page fills the width (or, side by side, the screen).
@@ -331,8 +349,6 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             scrollToPage(pendingScrollIndex, animated: false)
         }
         updateVisiblePages()
-        layoutPullIndicator()
-        layoutAddPageButton()
     }
 
     private func fittingScale() -> CGFloat {
@@ -355,7 +371,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     private func updateContentSize() {
         let zoom = canvasView.zoomScale
-        canvasView.contentSize = CGSize(width: layout.contentSize.width * zoom, height: layout.contentSize.height * zoom)
+        let contentSize = CGSize(width: layout.contentSize.width * zoom, height: layout.contentSize.height * zoom)
+        if canvasView.contentSize != contentSize {
+            canvasView.contentSize = contentSize
+        }
         pagesContainer.transform = CGAffineTransform(scaleX: zoom, y: zoom)
         pagesContainer.layer.position = .zero
         updateInsets()
