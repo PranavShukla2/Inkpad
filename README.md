@@ -9,6 +9,12 @@ Notebooks, PDFs and endless canvases, built for Apple Pencil.
 
 </div>
 
+<p align="center">
+<a href="https://github.com/PranavShukla2/Inkpad/releases/latest"><b>⬇︎ Download the latest version</b></a>
+&nbsp;·&nbsp;
+<a href="INSTALL.md"><b>How to install it on your iPad</b></a>
+</p>
+
 ---
 
 ## Highlights
@@ -136,6 +142,10 @@ Also included:
 <img src="docs/screenshots/darknotebook.jpg" width="45%" alt="A notebook on dusk paper">
 </p>
 
+## Install
+
+Inkpad isn't on the App Store. Download **Inkpad.ipa** from the [latest release](https://github.com/PranavShukla2/Inkpad/releases/latest) and install it with AltStore, SideStore or Sideloadly using your own free Apple ID. **[The install guide](INSTALL.md)** walks through it step by step.
+
 ## Building
 
 **Requirements:** Xcode 26 or later and an iPad on iPadOS 17 or later. A free Apple ID (Personal Team) is enough; Inkpad uses no paid capabilities.
@@ -145,6 +155,8 @@ Also included:
 3. Pick your iPad (or a simulator) and press **Run**.
 
 On a free Personal Team, apps installed on a device expire after 7 days; run from Xcode again to refresh. Your notes are kept.
+
+To make an `.ipa` for a release, run `scripts/build-ipa.sh`. It writes an unsigned `build/Inkpad.ipa` that sideloading tools sign on install.
 
 ### Demo content
 
