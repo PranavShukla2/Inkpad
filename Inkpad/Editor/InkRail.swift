@@ -72,7 +72,7 @@ struct InkRail: View {
             .scaleEffect(0.85)
             .frame(width: 32, height: 32)
             RailDivider()
-            widthOptions(color: Color(tools.color))
+            widthOptions(color: tools.color.isVeryDark ? Theme.ink : Color(tools.color))
         } else if tools.tool == .eraser {
             RailButton(symbol: "scribble", label: "Erase Whole Strokes", isSelected: !tools.eraserIsPartial, style: .toggle) {
                 tools.eraserIsPartial = false
@@ -159,7 +159,8 @@ private struct ColorDrop: View {
             Circle()
                 .fill(color)
                 .overlay {
-                    Circle().strokeBorder(.black.opacity(0.12), lineWidth: 0.5)
+                    // A rim keeps dark inks visible on the dark rail.
+                    Circle().strokeBorder(Theme.inkSecondary.opacity(0.45), lineWidth: 1)
                 }
                 .frame(width: 22, height: 22)
                 .padding(3)
@@ -182,5 +183,13 @@ private struct RailDivider: View {
             .fill(Theme.hairline)
             .frame(width: 24, height: 1)
             .padding(.vertical, 4)
+    }
+}
+
+private extension UIColor {
+    var isVeryDark: Bool {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return 0.299 * red + 0.587 * green + 0.114 * blue < 0.2
     }
 }
