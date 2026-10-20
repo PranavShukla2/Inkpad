@@ -28,9 +28,12 @@ struct InkpadApp: App {
         }
     }()
 
+    @State private var tools = ToolState()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            LibraryView()
+                .environment(tools)
         }
         .modelContainer(sharedModelContainer)
     }
