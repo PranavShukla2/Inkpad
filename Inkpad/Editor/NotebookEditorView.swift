@@ -116,6 +116,17 @@ struct NotebookEditorView: View {
                 .frame(width: 1, height: 22)
                 .padding(.horizontal, 6)
 
+            ShareLink(
+                item: NotebookExport(title: model.notebook.displayTitle) { [model] in
+                    model.saveNow()
+                    return model.notebook.snapshot
+                },
+                preview: SharePreview(model.notebook.displayTitle)
+            ) {
+                BarIcon(symbol: "square.and.arrow.up")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Export PDF")
             BarButton(symbol: "square.grid.2x2", label: "Pages") {
                 showPages()
             }
