@@ -5,6 +5,7 @@
 
 import SwiftUI
 import PencilKit
+import SwiftData
 
 /// Connects a notebook to its canvas: loads pages, saves ink in the background,
 /// and performs page operations.
@@ -110,6 +111,17 @@ final class NotebookEditorModel {
                 notebook.updatedAt = .now
             }
         }
+        persist()
+    }
+
+    /// Writes to disk now rather than whenever SwiftData autosaves, so ink
+    /// survives even if the app is killed straight after writing.
+    private func persist() {
+        do {
+            try notebook.modelContext?.save()
+        } catch {
+            print("Failed to save notebook: \(error)")
+        }
     }
 
     /// Writes any pending ink immediately.
@@ -146,6 +158,7 @@ final class NotebookEditorModel {
         }
         if !changedPages.isEmpty {
             notebook.updatedAt = .now
+            persist()
             scheduleRecognition(for: changedPages)
             growBoardIfNeeded()
         }
