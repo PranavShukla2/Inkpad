@@ -13,14 +13,10 @@ extension Note {
     /// Serialized PencilKit drawings for an imported PDF, keyed by page index.
     var pageDrawingData: [Int: Data] {
         get {
-            guard let pageDrawingsData,
-                  let pages = try? PropertyListDecoder().decode([Int: Data].self, from: pageDrawingsData) else {
-                return [:]
-            }
-            return pages
+            PageDrawings.decode(pageDrawingsData)
         }
         set {
-            pageDrawingsData = try? PropertyListEncoder().encode(newValue)
+            pageDrawingsData = PageDrawings.encode(newValue)
             updatedAt = .now
         }
     }

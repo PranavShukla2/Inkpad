@@ -7,7 +7,7 @@ import UIKit
 import PDFKit
 import PencilKit
 
-enum Thumbnail {
+nonisolated enum Thumbnail {
     static let size = CGSize(width: 160, height: 120)
 
     /// Renders the top of the page, so the preview matches the note's layout.
@@ -15,7 +15,7 @@ enum Thumbnail {
         let drawingBounds = drawing.bounds
         let pageWidth = max(drawingBounds.isNull ? 0 : drawingBounds.maxX + 20, 600)
         let region = CGRect(x: 0, y: 0, width: pageWidth, height: pageWidth * size.height / size.width)
-        let ink = inkImage(of: drawing, in: region, scale: size.width / pageWidth * 2)
+        let ink = drawing.lightImage(from: region, scale: size.width / pageWidth * 2)
 
         return UIGraphicsImageRenderer(size: size).image { context in
             UIColor.white.setFill()
@@ -30,7 +30,7 @@ enum Thumbnail {
         let scaledHeight = size.width * pageSize.height / pageSize.width
         let pageRect = CGRect(x: 0, y: 0, width: size.width, height: scaledHeight)
         let pageImage = page.thumbnail(of: CGSize(width: size.width * 2, height: scaledHeight * 2), for: .cropBox)
-        let ink = inkImage(of: drawing, in: CGRect(origin: .zero, size: pageSize), scale: size.width / pageSize.width * 2)
+        let ink = drawing.lightImage(from: CGRect(origin: .zero, size: pageSize), scale: size.width / pageSize.width * 2)
 
         return UIGraphicsImageRenderer(size: size).image { context in
             UIColor.white.setFill()
@@ -44,14 +44,5 @@ enum Thumbnail {
     static func displayedSize(of page: PDFPage) -> CGSize {
         let size = page.bounds(for: .cropBox).size
         return page.rotation % 180 == 0 ? size : CGSize(width: size.height, height: size.width)
-    }
-
-    private static func inkImage(of drawing: PKDrawing, in region: CGRect, scale: CGFloat) -> UIImage {
-        var ink = UIImage()
-        // Always render ink as it looks on white paper, even in Dark Mode.
-        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
-            ink = drawing.image(from: region, scale: scale)
-        }
-        return ink
     }
 }
