@@ -239,6 +239,19 @@ struct LibraryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 4) {
+                    if selectedFolder != nil {
+                        Button {
+                            withAnimation(.snappy) {
+                                section = .library
+                            }
+                        } label: {
+                            Label("Library", systemImage: "chevron.left")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.stamp)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.bottom, 4)
+                    }
                     Text(sectionTitle)
                         .font(.serif(.largeTitle, weight: .bold))
                         .foregroundStyle(Theme.ink)
