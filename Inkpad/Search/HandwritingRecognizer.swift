@@ -30,12 +30,23 @@ nonisolated enum HandwritingRecognizer {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
+        request.automaticallyDetectsLanguage = true
         do {
             try VNImageRequestHandler(cgImage: cgImage).perform([request])
         } catch {
             return ""
         }
-        return (request.results ?? [])
+        // Reading order: top to bottom, then left to right within a line.
+        // Vision's bounding boxes have their origin at the bottom left.
+        let lines = (request.results ?? []).sorted { first, second in
+            let a = first.boundingBox
+            let b = second.boundingBox
+            if abs(a.midY - b.midY) < min(a.height, b.height) / 2 {
+                return a.minX < b.minX
+            }
+            return a.midY > b.midY
+        }
+        return lines
             .compactMap { $0.topCandidates(1).first?.string }
             .joined(separator: "\n")
     }

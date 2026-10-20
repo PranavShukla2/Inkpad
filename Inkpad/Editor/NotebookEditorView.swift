@@ -13,6 +13,7 @@ struct NotebookEditorView: View {
     @State private var isRenaming = false
     @State private var isShowingPages = false
     @State private var isShowingRecordings = false
+    @State private var isConvertingToText = false
     @State private var recorder = AudioRecorder()
     @State private var renameText = ""
 
@@ -69,6 +70,9 @@ struct NotebookEditorView: View {
             if UserDefaults.standard.bool(forKey: "showPages") {
                 showPages()
             }
+            if UserDefaults.standard.bool(forKey: "convertText") {
+                isConvertingToText = true
+            }
             if UserDefaults.standard.bool(forKey: "showRuler") {
                 tools.isRulerActive = true
             }
@@ -76,6 +80,16 @@ struct NotebookEditorView: View {
         #endif
         .sheet(isPresented: $isShowingPages) {
             PageNavigatorView(model: model)
+        }
+        .sheet(isPresented: $isConvertingToText) {
+            if let page = model.currentPage {
+                ConvertToTextView(
+                    notebookTitle: model.notebook.displayTitle,
+                    currentPage: page.spec,
+                    currentPageNumber: model.currentPageIndex + 1,
+                    allPages: model.pages.map(\.spec)
+                )
+            }
         }
         .alert("Rename Notebook", isPresented: $isRenaming) {
             TextField("Title", text: $renameText)
@@ -210,6 +224,11 @@ struct NotebookEditorView: View {
                     }
                 }
                 .pickerStyle(.menu)
+            }
+            Button("Convert to Text", systemImage: "character.cursor.ibeam") {
+                // Recognition reads saved ink, so write the latest strokes first.
+                model.saveNow()
+                isConvertingToText = true
             }
             Divider()
             if !model.notebook.isCanvas {
