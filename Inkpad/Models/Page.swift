@@ -20,8 +20,7 @@ final class Page {
     var updatedAt: Date
     var notebook: Notebook?
 
-    /// A4 proportions, sized so a page fills an iPad screen at about 100%.
-    static let standardSize = CGSize(width: 768, height: 1086)
+    static let standardSize = PageLayout.standardPageSize
 
     init(index: Int, size: CGSize = Page.standardSize, paperStyle: PaperStyle, pdfPageIndex: Int? = nil) {
         self.index = index
