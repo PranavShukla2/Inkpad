@@ -19,8 +19,8 @@ final class NotebookEditorModel {
     @ObservationIgnored private weak var canvas: NotebookCanvasView?
     /// The notebook's PDF, if any. Safe to read from background threads.
     @ObservationIgnored let pdf: CGPDFDocument?
-    /// The last data written for each page, to skip unchanged pages.
-    @ObservationIgnored private var savedData: [Data?] = []
+    /// Fingerprints of each page's ink as last saved, to skip unchanged pages.
+    @ObservationIgnored private var savedSignatures: [Int] = []
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     /// Bumped whenever pages are added, removed or reordered, so an in-flight
     /// background save can't write ink to the wrong page.
@@ -72,29 +72,46 @@ final class NotebookEditorModel {
         guard let canvas else { return }
         let drawing = canvas.canvasView.drawing
         let layout = canvas.layout
+        let saved = savedSignatures
         let version = layoutVersion
-        let data = await Task.detached(priority: .userInitiated) {
-            layout.split(drawing).map { $0.dataRepresentation() }
+        let changes = await Task.detached(priority: .userInitiated) {
+            Self.changedPages(in: layout.split(drawing), comparedTo: saved)
         }.value
         guard version == layoutVersion else { return }
-        apply(data)
+        apply(changes)
     }
 
     /// Writes any pending ink immediately.
     func saveNow() {
         saveTask?.cancel()
         guard let canvas else { return }
-        apply(canvas.pageDrawings().map { $0.dataRepresentation() })
+        apply(Self.changedPages(in: canvas.pageDrawings(), comparedTo: savedSignatures))
     }
 
-    private func apply(_ data: [Data]) {
-        guard data.count == pages.count else { return }
+    private struct PageChange: Sendable {
+        let index: Int
+        let signature: Int
+        let data: Data
+    }
+
+    /// Encodes only the pages whose ink differs from what was last saved.
+    nonisolated private static func changedPages(in drawings: [PKDrawing], comparedTo saved: [Int]) -> [PageChange] {
+        guard drawings.count == saved.count else { return [] }
+        return drawings.enumerated().compactMap { index, drawing in
+            let signature = drawing.contentSignature
+            guard signature != saved[index] else { return nil }
+            return PageChange(index: index, signature: signature, data: drawing.dataRepresentation())
+        }
+    }
+
+    private func apply(_ changes: [PageChange]) {
         var changedPages: [Page] = []
-        for (index, pageData) in data.enumerated() where savedData[index] != pageData {
-            pages[index].drawingData = pageData
-            pages[index].updatedAt = .now
-            savedData[index] = pageData
-            changedPages.append(pages[index])
+        for change in changes where pages.indices.contains(change.index) {
+            let page = pages[change.index]
+            page.drawingData = change.data
+            page.updatedAt = .now
+            savedSignatures[change.index] = change.signature
+            changedPages.append(page)
         }
         if !changedPages.isEmpty {
             notebook.updatedAt = .now
@@ -235,9 +252,10 @@ final class NotebookEditorModel {
     private func reloadCanvas(scrollTo index: Int) {
         layoutVersion += 1
         pages = notebook.sortedPages
-        savedData = pages.map(\.drawingData)
         currentPageIndex = min(max(index, 0), max(pages.count - 1, 0))
         canvas?.load(specs: pages.map(\.spec), paperColor: notebook.paperColor, pdf: pdf, scrollTo: currentPageIndex)
+        // Fingerprint through the same split that saves use, so untouched pages match.
+        savedSignatures = canvas?.pageDrawings().map(\.contentSignature) ?? []
         updateUndoState()
     }
 }
