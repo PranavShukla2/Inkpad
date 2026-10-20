@@ -7,47 +7,20 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var notes: [Note]
+    @State private var selectedNote: Note?
 
     var body: some View {
         NavigationSplitView {
-            List {
-                ForEach(notes) { item in
-                    NavigationLink {
-                        Text("Item at \(item.createdAt, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.createdAt, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
+            NotesListView(selection: $selectedNote)
         } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Note()
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(notes[index])
+            if let selectedNote {
+                NoteEditorView(note: selectedNote)
+            } else {
+                ContentUnavailableView(
+                    "No Note Selected",
+                    systemImage: "pencil.and.scribble",
+                    description: Text("Pick a note from the sidebar or create a new one.")
+                )
             }
         }
     }
