@@ -96,8 +96,8 @@ struct LibraryView: View {
         }
         #if DEBUG
         .task {
-            if DemoContent.shouldOpenFirstNotebook {
-                openNotebook = visibleNotebooks.first
+            if let title = DemoContent.notebookTitleToOpen {
+                openNotebook = notebooks.first { $0.title == title }
             }
         }
         #endif

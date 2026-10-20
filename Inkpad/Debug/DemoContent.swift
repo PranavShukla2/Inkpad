@@ -3,7 +3,7 @@
 //  Inkpad
 //
 //  Debug-only sample notebooks for checking layouts in the simulator.
-//  Launch with -seedDemo to replace the library, and -openFirstNotebook to open one.
+//  Launch with -seedDemo to replace the library, and -openNotebook "Title" to open one.
 //
 
 #if DEBUG
@@ -12,8 +12,9 @@ import PencilKit
 import SwiftData
 
 enum DemoContent {
-    static var shouldOpenFirstNotebook: Bool {
-        ProcessInfo.processInfo.arguments.contains("-openFirstNotebook")
+    /// Launch arguments like `-openNotebook Diary` land in user defaults.
+    static var notebookTitleToOpen: String? {
+        UserDefaults.standard.string(forKey: "openNotebook")
     }
 
     static func seedIfRequested(in context: ModelContext) {
