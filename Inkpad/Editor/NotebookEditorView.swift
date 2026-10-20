@@ -69,6 +69,9 @@ struct NotebookEditorView: View {
             if UserDefaults.standard.bool(forKey: "showPages") {
                 showPages()
             }
+            if UserDefaults.standard.bool(forKey: "showRuler") {
+                tools.isRulerActive = true
+            }
         }
         #endif
         .sheet(isPresented: $isShowingPages) {

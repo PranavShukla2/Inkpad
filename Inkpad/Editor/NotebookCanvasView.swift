@@ -48,6 +48,9 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private let laserRecognizer = LaserGestureRecognizer()
     /// The scroll view's own setting, restored when the laser is put away.
     private var defaultMinimumPanTouches: Int?
+    private let ruler = RulerView()
+    private var isRulerVisible = false
+    private let rulerControls = RulerControlsView()
     private let pullIndicator = PullToAddView()
     private let pullThreshold: CGFloat = 90
     private var isPullArmed = false
@@ -71,6 +74,17 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         pagesContainer.isUserInteractionEnabled = false
         canvasView.insertSubview(pagesContainer, at: 0)
         addSubview(canvasView)
+
+        ruler.isHidden = true
+        rulerControls.isHidden = true
+        rulerControls.onRotate = { [weak self] degrees in
+            self?.ruler.rotate(byDegrees: degrees)
+        }
+        rulerControls.onSetAngle = { [weak self] degrees in
+            self?.ruler.setAngle(degrees: degrees, animated: true)
+        }
+        addSubview(ruler)
+        addSubview(rulerControls)
 
         addSubview(laserOverlay)
         laserRecognizer.isEnabled = false
@@ -200,13 +214,28 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             appliedToolKey = key
             canvasView.tool = tool()
         }
-        if canvasView.isRulerActive != isRulerActive {
-            canvasView.isRulerActive = isRulerActive
+        if isRulerVisible != isRulerActive {
+            showRuler(isRulerActive)
         }
         // With Pencil-only drawing, fingers scroll and zoom.
         let policy: PKCanvasViewDrawingPolicy = allowsFingerDrawing ? .anyInput : .pencilOnly
         if canvasView.drawingPolicy != policy {
             canvasView.drawingPolicy = policy
+        }
+    }
+
+    private func showRuler(_ isVisible: Bool) {
+        isRulerVisible = isVisible
+        if isVisible {
+            ruler.isHidden = false
+            rulerControls.isHidden = false
+        }
+        UIView.animate(withDuration: 0.2) {
+            self.ruler.alpha = isVisible ? 1 : 0
+            self.rulerControls.alpha = isVisible ? 1 : 0
+        } completion: { _ in
+            self.ruler.isHidden = !self.isRulerVisible
+            self.rulerControls.isHidden = !self.isRulerVisible
         }
     }
 
@@ -240,6 +269,14 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         super.layoutSubviews()
         canvasView.frame = bounds
         laserOverlay.frame = bounds
+        ruler.frame = bounds
+        let controlsSize = rulerControls.sizeThatFits(bounds.size)
+        rulerControls.frame = CGRect(
+            x: (bounds.width - controlsSize.width) / 2,
+            y: topInset + 12,
+            width: controlsSize.width,
+            height: controlsSize.height
+        )
         guard bounds.width > 0, layout.contentSize.width > 0 else { return }
 
         // Zoomed all the way out, a page fills the width (or, side by side, the screen).
@@ -409,8 +446,12 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         guard !isLoading else { return }
         let addedOneStroke = canvasView.drawing.strokes.count == strokeCount + 1
         strokeCount = canvasView.drawing.strokes.count
-        if snapsShapes, !isSnapping, addedOneStroke {
-            snapLastStroke()
+        if !isSnapping, addedOneStroke {
+            if isRulerVisible {
+                straightenLastStrokeAlongRuler()
+            } else if snapsShapes {
+                snapLastStroke()
+            }
         }
         onDrawingChanged?()
     }
@@ -422,6 +463,48 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         var after = before
         after.strokes[after.strokes.count - 1] = shape
         setDrawing(after, undoingTo: before)
+    }
+
+    /// A stroke drawn along a ruler edge becomes perfectly straight, keeping the
+    /// distance from the edge the user drew at.
+    private func straightenLastStrokeAlongRuler() {
+        let before = canvasView.drawing
+        guard let stroke = before.strokes.last else { return }
+        let zoom = canvasView.zoomScale
+        let offset = canvasView.contentOffset
+        let screenPoints = stroke.path.map { point -> CGPoint in
+            let location = point.location.applying(stroke.transform)
+            return CGPoint(x: location.x * zoom - offset.x, y: location.y * zoom - offset.y)
+        }
+        guard screenPoints.count >= 2 else { return }
+
+        let direction = ruler.directionVector
+        let tolerance: CGFloat = 22
+        for edge in ruler.edges {
+            // Signed distance outward from the edge, and position along it.
+            let distances = screenPoints.map { ($0.x - edge.point.x) * edge.normal.x + ($0.y - edge.point.y) * edge.normal.y }
+            let nearEdge = distances.filter { $0 > -6 && $0 < tolerance }.count
+            guard Double(nearEdge) >= Double(distances.count) * 0.85 else { continue }
+
+            let meanDistance = max(0, distances.reduce(0, +) / CGFloat(distances.count))
+            let along = screenPoints.map { ($0.x - edge.point.x) * direction.x + ($0.y - edge.point.y) * direction.y }
+            guard let minAlong = along.min(), let maxAlong = along.max(), maxAlong - minAlong > 12 else { return }
+
+            func canvasPoint(_ t: CGFloat) -> CGPoint {
+                let screen = CGPoint(
+                    x: edge.point.x + direction.x * t + edge.normal.x * meanDistance,
+                    y: edge.point.y + direction.y * t + edge.normal.y * meanDistance
+                )
+                return CGPoint(x: (screen.x + offset.x) / zoom, y: (screen.y + offset.y) / zoom)
+            }
+            var after = before
+            after.strokes[after.strokes.count - 1] = ShapeRecognizer.makeStroke(
+                through: [canvasPoint(minAlong), canvasPoint(maxAlong)],
+                like: stroke
+            )
+            setDrawing(after, undoingTo: before)
+            return
+        }
     }
 
     private func setDrawing(_ drawing: PKDrawing, undoingTo previous: PKDrawing) {

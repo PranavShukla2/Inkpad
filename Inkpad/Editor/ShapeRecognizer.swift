@@ -54,7 +54,7 @@ nonisolated enum ShapeRecognizer {
 
     // MARK: - Building strokes
 
-    private static func makeStroke(through vertices: [CGPoint], like original: PKStroke) -> PKStroke {
+    static func makeStroke(through vertices: [CGPoint], like original: PKStroke) -> PKStroke {
         let sizes = original.path.map(\.size.width).sorted()
         let width = sizes.isEmpty ? 3 : sizes[sizes.count / 2]
         var points: [PKStrokePoint] = []
