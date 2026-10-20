@@ -63,7 +63,15 @@ enum DemoContent {
         lectureGraph.domainMax = 6
         var lectureNote = BoardItem(kind: .sticky, x: 545, y: 450, width: 180, height: 180, colorHex: BoardItem.stickyColors[0])
         lectureNote.text = "Revise before Friday!"
-        lecture.sortedPages.first?.items = [lectureGraph, lectureNote]
+        var quadratic = BoardItem(kind: .equation, x: 100, y: 760, width: 0, height: 0, colorHex: "2C55C9")
+        quadratic.text = "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}"
+        if let size = BoardItemRenderer.equationSize(quadratic.text) {
+            quadratic.width = size.width * 1.2
+            quadratic.height = size.height * 1.2
+        }
+        var results = BoardItem(kind: .table, x: 100, y: 900, width: 420, height: 150, colorHex: BoardItem.shapeColors[2])
+        results.cells = [["x", "sin(x)", "cos(x)"], ["0", "0", "1"], ["π/2", "1", "0"]]
+        lecture.sortedPages.first?.items = [lectureGraph, lectureNote, quadratic, results]
         lecture.updatedAt = .now.addingTimeInterval(-10)
 
         let board = Notebook.createCanvas(in: context, title: "Project Board", cover: .moss, paperStyle: .dots, paperColor: .white)
