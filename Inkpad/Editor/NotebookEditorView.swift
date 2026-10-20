@@ -90,7 +90,6 @@ struct NotebookEditorView: View {
     private var topBar: some View {
         HStack(spacing: 2) {
             BarButton(symbol: "chevron.left", label: "Library") {
-                model.close()
                 dismiss()
             }
 
