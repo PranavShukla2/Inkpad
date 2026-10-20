@@ -5,6 +5,8 @@
 
 import SwiftUI
 import SwiftData
+import PDFKit
+import UniformTypeIdentifiers
 
 struct NotesListView: View {
     @Environment(\.modelContext) private var modelContext
@@ -13,6 +15,8 @@ struct NotesListView: View {
     @State private var noteBeingRenamed: Note?
     @State private var renameText = ""
     @State private var searchText = ""
+    @State private var isImportingPDF = false
+    @State private var importErrorMessage: String?
 
     private var filteredNotes: [Note] {
         guard !searchText.isEmpty else { return notes }
@@ -58,11 +62,28 @@ struct NotesListView: View {
         .searchable(text: $searchText, prompt: "Search notes")
         .navigationTitle("Notes")
         .toolbar {
-            ToolbarItem {
+            ToolbarItemGroup {
+                Button {
+                    isImportingPDF = true
+                } label: {
+                    Label("Import PDF", systemImage: "doc.badge.plus")
+                }
                 Button(action: addNote) {
                     Label("New Note", systemImage: "square.and.pencil")
                 }
             }
+        }
+        .fileImporter(isPresented: $isImportingPDF, allowedContentTypes: [.pdf], onCompletion: importPDF)
+        .alert(
+            "Couldn't Import PDF",
+            isPresented: Binding(
+                get: { importErrorMessage != nil },
+                set: { if !$0 { importErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importErrorMessage ?? "")
         }
         .alert("Rename Note", isPresented: isRenaming, presenting: noteBeingRenamed) { note in
             TextField("Title", text: $renameText)
@@ -91,6 +112,33 @@ struct NotesListView: View {
             let note = Note()
             modelContext.insert(note)
             selection = note
+        }
+    }
+
+    private func importPDF(_ result: Result<URL, Error>) {
+        do {
+            let url = try result.get()
+            let isAccessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if isAccessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let data = try Data(contentsOf: url)
+            guard let document = PDFDocument(data: data), !document.isLocked else {
+                importErrorMessage = "\"\(url.lastPathComponent)\" may be damaged or password-protected."
+                return
+            }
+
+            let note = Note(title: url.deletingPathExtension().lastPathComponent)
+            note.pdfData = data
+            withAnimation {
+                modelContext.insert(note)
+                selection = note
+            }
+        } catch {
+            importErrorMessage = error.localizedDescription
         }
     }
 
