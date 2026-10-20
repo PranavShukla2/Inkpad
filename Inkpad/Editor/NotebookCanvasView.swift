@@ -18,6 +18,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     var onAddPageRequested: (() -> Void)?
     /// Every text box, in canvas coordinates, after any change.
     var onTextBoxesChanged: (([TextBox]) -> Void)?
+    /// A short message for the user, e.g. when handwriting couldn't be read.
+    var onMessage: ((String) -> Void)?
 
     let textOverlay = TextBoxOverlay()
 
@@ -43,8 +45,12 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private var isLoading = false
     /// Snap new strokes to clean shapes (the Shapes tool).
     private var snapsShapes = false
-    private var isSnapping = false
+    private var isReplacingDrawing = false
     private var strokeCount = 0
+    /// Text Pen: handwriting waiting to be turned into a text box.
+    private var isTextPenActive = false
+    private var textPenStrokeCount = 0
+    private var textPenWork: DispatchWorkItem?
     private var appliedToolKey: String?
     /// A page to show once the view has a size.
     private var pendingScrollIndex: Int?
@@ -269,9 +275,15 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         allowsFingerDrawing: Bool,
         snapsShapes: Bool,
         laserColor: UIColor?,
-        textStyle: (fontSize: CGFloat, color: UIColor)?
+        textStyle: (fontSize: CGFloat, color: UIColor)?,
+        isTextPen: Bool
     ) {
         self.snapsShapes = snapsShapes
+        if isTextPenActive && !isTextPen {
+            // Switching away converts what was written straight away.
+            convertTextPenStrokes()
+        }
+        isTextPenActive = isTextPen
         applyLaser(color: laserColor, allowsFingerDrawing: allowsFingerDrawing)
         applyText(style: textStyle)
         // The laser and Text tool handle touches themselves.
@@ -592,15 +604,105 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
         guard !isLoading else { return }
         let addedOneStroke = canvasView.drawing.strokes.count == strokeCount + 1
+        if canvasView.drawing.strokes.count < strokeCount {
+            textPenStrokeCount = 0
+        }
         strokeCount = canvasView.drawing.strokes.count
-        if !isSnapping, addedOneStroke {
-            if isRulerVisible {
+        if !isReplacingDrawing, addedOneStroke {
+            if isTextPenActive {
+                textPenStrokeCount += 1
+                scheduleTextPenConversion()
+            } else if isRulerVisible {
                 straightenLastStrokeAlongRuler()
             } else if snapsShapes {
                 snapLastStroke()
             }
         }
         onDrawingChanged?()
+    }
+
+    func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+        // Still writing: wait for a pause before converting.
+        textPenWork?.cancel()
+    }
+
+    // MARK: - Text Pen
+
+    private func scheduleTextPenConversion() {
+        textPenWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.convertTextPenStrokes()
+        }
+        textPenWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: work)
+    }
+
+    /// Reads the Text Pen's handwriting and swaps it for a typed text box.
+    private func convertTextPenStrokes() {
+        textPenWork?.cancel()
+        let count = textPenStrokeCount
+        textPenStrokeCount = 0
+        let before = canvasView.drawing
+        guard count > 0, before.strokes.count >= count else { return }
+
+        let strokes = Array(before.strokes.suffix(count))
+        let area = strokes.reduce(CGRect.null) { $0.union($1.renderBounds) }
+        let handwriting = PKDrawing(strokes: strokes)
+        let expectedStrokeCount = before.strokes.count
+
+        Task { [weak self] in
+            let text = await Task.detached(priority: .userInitiated) {
+                HandwritingRecognizer.recognizeText(in: handwriting, area: area)
+            }.value
+            guard let self else { return }
+            guard canvasView.drawing.strokes.count == expectedStrokeCount else {
+                // More was written meanwhile: convert it all together after the next pause.
+                if isTextPenActive {
+                    textPenStrokeCount += count
+                    scheduleTextPenConversion()
+                }
+                return
+            }
+            guard !text.isEmpty else {
+                onMessage?("Couldn't read that. Try writing a little larger.")
+                return
+            }
+
+            let lines = max(1, text.split(separator: "\n").count)
+            let fontSize = min(max(area.height / CGFloat(lines) * 0.72, 14), 48)
+            let maxWidth = textOverlay.availableWidth?(area.origin) ?? 520
+            let box = TextBox(
+                x: area.minX,
+                y: area.minY,
+                width: max(min(area.width + 24, maxWidth), 160),
+                text: text,
+                fontSize: fontSize,
+                colorHex: strokes[0].ink.color.hexString
+            )
+            var after = before
+            after.strokes.removeLast(count)
+            applyConversion(removingInk: after, adding: box, restoring: before)
+        }
+    }
+
+    private func applyConversion(removingInk drawing: PKDrawing, adding box: TextBox, restoring previous: PKDrawing) {
+        isReplacingDrawing = true
+        canvasView.drawing = drawing
+        isReplacingDrawing = false
+        textOverlay.add(box, beginEditing: false)
+        canvasView.undoManager?.registerUndo(withTarget: self) { target in
+            target.undoConversion(of: box, restoring: previous, converted: drawing)
+        }
+    }
+
+    private func undoConversion(of box: TextBox, restoring drawing: PKDrawing, converted: PKDrawing) {
+        isReplacingDrawing = true
+        canvasView.drawing = drawing
+        isReplacingDrawing = false
+        textOverlay.remove(id: box.id)
+        canvasView.undoManager?.registerUndo(withTarget: self) { target in
+            target.applyConversion(removingInk: converted, adding: box, restoring: drawing)
+        }
     }
 
     /// Replaces the stroke just drawn with a clean shape, undoably.
@@ -655,9 +757,9 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     }
 
     private func setDrawing(_ drawing: PKDrawing, undoingTo previous: PKDrawing) {
-        isSnapping = true
+        isReplacingDrawing = true
         canvasView.drawing = drawing
-        isSnapping = false
+        isReplacingDrawing = false
         canvasView.undoManager?.registerUndo(withTarget: self) { target in
             target.setDrawing(previous, undoingTo: drawing)
         }

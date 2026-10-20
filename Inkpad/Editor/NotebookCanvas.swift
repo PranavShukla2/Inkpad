@@ -9,6 +9,7 @@ struct NotebookCanvas: UIViewRepresentable {
     let model: NotebookEditorModel
     let tools: ToolState
     let topInset: CGFloat
+    var onMessage: (String) -> Void = { _ in }
 
     func makeUIView(context: Context) -> NotebookCanvasView {
         let canvas = NotebookCanvasView()
@@ -16,6 +17,7 @@ struct NotebookCanvas: UIViewRepresentable {
         canvas.onPencilTap = { [tools] action in
             tools.handlePencilTap(action)
         }
+        canvas.onMessage = onMessage
         model.attach(canvas)
         return canvas
     }
@@ -29,7 +31,8 @@ struct NotebookCanvas: UIViewRepresentable {
             allowsFingerDrawing: tools.allowsFingerDrawing,
             snapsShapes: tools.tool == .shape,
             laserColor: tools.tool == .laser ? tools.color : nil,
-            textStyle: tools.tool == .text ? (tools.textSize, tools.color) : nil
+            textStyle: tools.tool == .text ? (tools.textSize, tools.color) : nil,
+            isTextPen: tools.tool == .textPen
         )
     }
 }

@@ -11,19 +11,26 @@ import Vision
 /// Reads handwriting on a page with on-device Vision text recognition.
 nonisolated enum HandwritingRecognizer {
     static func recognizeText(in drawingData: Data?, pageSize: CGSize) -> String {
-        guard let drawingData,
-              let drawing = try? PKDrawing(data: drawingData),
-              !drawing.strokes.isEmpty else { return "" }
+        guard let drawingData, let drawing = try? PKDrawing(data: drawingData) else { return "" }
+        return recognizeText(in: drawing, area: CGRect(origin: .zero, size: pageSize))
+    }
 
-        // Dark ink on white reads best, whatever the paper colour.
-        let pageRect = CGRect(origin: .zero, size: pageSize)
-        let ink = drawing.image(from: pageRect, scale: 2, style: .light)
+    /// Reads the handwriting inside one area, e.g. what the Text Pen just wrote.
+    static func recognizeText(in drawing: PKDrawing, area: CGRect) -> String {
+        guard !drawing.strokes.isEmpty, !area.isNull, !area.isEmpty else { return "" }
+
+        // Dark ink on white reads best, whatever the paper colour. Small areas
+        // are rendered larger so short words have enough pixels.
+        let area = area.insetBy(dx: -16, dy: -16)
+        let scale = min(max(1200 / max(area.width, area.height), 2), 4)
+        let ink = drawing.image(from: area, scale: scale, style: .light)
         let format = UIGraphicsImageRendererFormat()
-        format.scale = 2
-        let image = UIGraphicsImageRenderer(size: pageSize, format: format).image { context in
+        format.scale = scale
+        let canvas = CGRect(origin: .zero, size: area.size)
+        let image = UIGraphicsImageRenderer(size: area.size, format: format).image { context in
             UIColor.white.setFill()
-            context.fill(pageRect)
-            ink.draw(in: pageRect)
+            context.fill(canvas)
+            ink.draw(in: canvas)
         }
         guard let cgImage = image.cgImage else { return "" }
 

@@ -14,6 +14,7 @@ enum InkTool: String, CaseIterable, Identifiable {
     case shape
     case laser
     case text
+    case textPen
     case eraser
     case lasso
 
@@ -28,6 +29,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .shape: "Shapes"
         case .laser: "Laser Pen"
         case .text: "Text"
+        case .textPen: "Text Pen"
         case .eraser: "Eraser"
         case .lasso: "Lasso"
         }
@@ -42,6 +44,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .shape: "square.on.circle"
         case .laser: "laser.burst"
         case .text: "textformat"
+        case .textPen: "pencil.and.scribble"
         case .eraser: "eraser"
         case .lasso: "lasso"
         }
@@ -76,6 +79,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .pencil: [2, 4, 8]
         case .highlighter: [12, 20, 30]
         case .shape: [1.5, 3, 5.5]
+        case .textPen: [2, 3, 4.5]
         case .eraser: [8, 20, 40]
         case .lasso, .laser: []
         // Font sizes for typed text.
