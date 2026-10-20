@@ -48,6 +48,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private var isBoard = false
     /// Zoom and position to restore after reloading, so a growing board doesn't jump.
     private var pendingViewport: (zoom: CGFloat, offset: CGPoint)?
+    private var pendingBoardCentering = false
 
     private let laserOverlay = LaserOverlayView()
     private let laserRecognizer = LaserGestureRecognizer()
@@ -158,7 +159,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
         fitScale = 0
         needsContentLayout = true
-        pendingScrollIndex = keepViewport ? nil : pageIndex
+        // Boards centre on the ink instead of scrolling to a page.
+        pendingScrollIndex = keepViewport || isBoard ? nil : pageIndex
         setNeedsLayout()
         layoutIfNeeded()
     }
@@ -330,6 +332,9 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             fitScale = newFitScale
             canvasView.minimumZoomScale = newFitScale
             canvasView.maximumZoomScale = isBoard ? 4 : newFitScale * 5
+            if isBoard && wasFresh && pendingViewport == nil {
+                pendingBoardCentering = true
+            }
             if let pendingViewport {
                 canvasView.zoomScale = min(max(pendingViewport.zoom, newFitScale), canvasView.maximumZoomScale)
             } else if isBoard && wasFresh {
@@ -344,17 +349,32 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             self.pendingViewport = nil
             canvasView.contentOffset = pendingViewport.offset
         }
-        if let pendingScrollIndex {
+        if pendingBoardCentering {
+            pendingBoardCentering = false
+            centerBoardOnInk()
+        } else if let pendingScrollIndex {
             self.pendingScrollIndex = nil
             scrollToPage(pendingScrollIndex, animated: false)
         }
         updateVisiblePages()
     }
 
+    /// Opens a board looking at your ink, or at the middle of an empty board.
+    private func centerBoardOnInk() {
+        guard let board = layout.frames.first else { return }
+        let ink = canvasView.drawing.bounds
+        let target = ink.isNull || ink.isEmpty ? CGPoint(x: board.midX, y: board.midY) : CGPoint(x: ink.midX, y: ink.midY)
+        let zoom = canvasView.zoomScale
+        canvasView.contentOffset = CGPoint(
+            x: target.x * zoom - bounds.width / 2,
+            y: target.y * zoom - (bounds.height + topInset) / 2
+        )
+    }
+
     private func fittingScale() -> CGFloat {
         if isBoard {
-            // Zoomed all the way out, the whole board is visible.
-            return min(bounds.width / layout.contentSize.width, (bounds.height - topInset) / layout.contentSize.height)
+            // Zoom out far enough to get an overview, but not to the whole huge board.
+            return max(0.2, min(bounds.width / layout.contentSize.width, (bounds.height - topInset) / layout.contentSize.height))
         }
         switch layout.axis {
         case .vertical:
@@ -420,7 +440,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             slots[index] = nil
         }
         for index in needed where slots[index] == nil {
-            let slot = PageSlotView(frame: layout.frames[index], background: backgrounds[index])
+            let slot = PageSlotView(frame: layout.frames[index], background: backgrounds[index], showsShadow: !isBoard)
             pagesContainer.addSubview(slot)
             slots[index] = slot
         }

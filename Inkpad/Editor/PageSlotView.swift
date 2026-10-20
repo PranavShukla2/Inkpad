@@ -49,14 +49,16 @@ private final class PageTileView: UIView {
 
 /// One page on the desk: a soft shadow with the tiled page on top.
 final class PageSlotView: UIView {
-    init(frame: CGRect, background: PageBackground) {
+    init(frame: CGRect, background: PageBackground, showsShadow: Bool = true) {
         super.init(frame: frame)
         isUserInteractionEnabled = false
-        layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.12
-        layer.shadowRadius = 10
-        layer.shadowOffset = CGSize(width: 0, height: 3)
-        layer.shadowPath = UIBezierPath(rect: bounds).cgPath
+        if showsShadow {
+            layer.shadowColor = UIColor.black.cgColor
+            layer.shadowOpacity = 0.12
+            layer.shadowRadius = 10
+            layer.shadowOffset = CGSize(width: 0, height: 3)
+            layer.shadowPath = UIBezierPath(rect: bounds).cgPath
+        }
 
         let tileView = PageTileView(frame: bounds)
         if let tiledLayer = tileView.layer as? PageTiledLayer {

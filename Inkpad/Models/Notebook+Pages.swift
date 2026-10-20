@@ -24,8 +24,9 @@ extension Notebook {
         return notebook
     }
 
-    /// Starting size of a canvas board; it grows as you draw near the edges.
-    static let canvasStartSize = CGSize(width: 2048, height: 2048)
+    /// A canvas is one huge board that you start in the middle of, so it feels
+    /// endless in every direction. It still grows if you reach an edge.
+    static let canvasStartSize = CGSize(width: 16000, height: 16000)
     static let canvasGrowth: CGFloat = 1024
 
     static func createCanvas(

@@ -13,11 +13,13 @@ nonisolated struct NotebookSnapshot: Sendable {
     let pages: [PageSpec]
     let paperColor: PaperColor
     let pdfData: Data?
+    /// Canvas boards export just the area with ink, not the whole huge board.
+    var cropsToInk = false
 }
 
 extension Notebook {
     var snapshot: NotebookSnapshot {
-        NotebookSnapshot(pages: sortedPages.map(\.spec), paperColor: paperColor, pdfData: pdfData)
+        NotebookSnapshot(pages: sortedPages.map(\.spec), paperColor: paperColor, pdfData: pdfData, cropsToInk: isCanvas)
     }
 }
 
@@ -39,6 +41,18 @@ nonisolated struct NotebookExport: Transferable {
 nonisolated enum NotebookPDFRenderer {
     private static let inkScale: CGFloat = 3
 
+    /// The inked part of a board, with a margin, at least a page in size.
+    private static func inkArea(of drawing: PKDrawing, on boardSize: CGSize) -> CGRect {
+        let minimum = PageLayout.standardPageSize
+        var area = drawing.bounds
+        if area.isNull || area.isEmpty {
+            area = CGRect(x: boardSize.width / 2, y: boardSize.height / 2, width: 0, height: 0)
+        }
+        area = area.insetBy(dx: -48, dy: -48)
+        area = area.insetBy(dx: min(0, (area.width - minimum.width) / 2), dy: min(0, (area.height - minimum.height) / 2))
+        return area.intersection(CGRect(origin: .zero, size: boardSize))
+    }
+
     static func render(_ snapshot: NotebookSnapshot) -> Data {
         let pdf = snapshot.pdfData
             .flatMap { CGDataProvider(data: $0 as CFData) }
@@ -47,12 +61,17 @@ nonisolated enum NotebookPDFRenderer {
 
         return UIGraphicsPDFRenderer(bounds: .zero).pdfData { context in
             for spec in snapshot.pages {
-                let pageRect = CGRect(origin: .zero, size: spec.size)
-                context.beginPage(withBounds: pageRect, pageInfo: [:])
-                PageRenderer.drawBackground(of: spec, paperColor: snapshot.paperColor, pdf: pdf, in: context.cgContext)
                 let drawing = spec.drawing
+                let area = snapshot.cropsToInk ? inkArea(of: drawing, on: spec.size) : CGRect(origin: .zero, size: spec.size)
+                let pageRect = CGRect(origin: .zero, size: area.size)
+                context.beginPage(withBounds: pageRect, pageInfo: [:])
+                context.cgContext.saveGState()
+                context.cgContext.clip(to: pageRect)
+                context.cgContext.translateBy(x: -area.minX, y: -area.minY)
+                PageRenderer.drawBackground(of: spec, paperColor: snapshot.paperColor, pdf: pdf, in: context.cgContext)
+                context.cgContext.restoreGState()
                 if !drawing.strokes.isEmpty {
-                    drawing.image(from: pageRect, scale: inkScale, style: inkStyle).draw(in: pageRect)
+                    drawing.image(from: area, scale: inkScale, style: inkStyle).draw(in: pageRect)
                 }
             }
         }

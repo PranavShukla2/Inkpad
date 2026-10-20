@@ -46,6 +46,7 @@ final class NotebookEditorModel {
 
     func attach(_ canvas: NotebookCanvasView) {
         self.canvas = canvas
+        enlargeOldBoardIfNeeded()
         canvas.onDrawingChanged = { [weak self] in
             self?.drawingChanged()
         }
@@ -125,6 +126,22 @@ final class NotebookEditorModel {
             scheduleRecognition(for: changedPages)
             growBoardIfNeeded()
         }
+    }
+
+    /// Boards made before canvases became endless were small. Enlarge them and
+    /// move their ink to the middle so there's room in every direction.
+    private func enlargeOldBoardIfNeeded() {
+        guard notebook.isCanvas, let page = pages.first else { return }
+        let target = Notebook.canvasStartSize
+        guard page.width < target.width || page.height < target.height else { return }
+        let shift = CGPoint(x: max(0, (target.width - page.width) / 2), y: max(0, (target.height - page.height) / 2))
+        if let data = page.drawingData, let drawing = try? PKDrawing(data: data) {
+            page.drawingData = drawing.transformed(using: CGAffineTransform(translationX: shift.x, y: shift.y)).dataRepresentation()
+        }
+        page.width = max(page.width, target.width)
+        page.height = max(page.height, target.height)
+        notebook.pageWidth = page.width
+        notebook.pageHeight = page.height
     }
 
     /// Canvas boards grow right and down when ink gets near an edge.
