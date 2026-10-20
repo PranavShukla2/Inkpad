@@ -155,6 +155,10 @@ struct LibraryView: View {
         #if DEBUG
         .task {
             DemoContent.exportIfRequested(from: notebooks)
+            if UserDefaults.standard.bool(forKey: "newNotebook") {
+                try? await Task.sleep(for: .seconds(1))
+                startCreating(.notebook)
+            }
             if UserDefaults.standard.string(forKey: "section") == "canvases" {
                 section = .canvases
             }

@@ -57,6 +57,13 @@ enum DemoContent {
         }
         let lecture = Notebook.create(in: context, title: "Handwriting Test", cover: .ochre, paperStyle: .lined, paperColor: .white)
         lecture.sortedPages.first?.drawingData = textInk(["Meeting notes", "Buy milk tomorrow", "Call Sam at 5pm"]).dataRepresentation()
+        var lectureGraph = BoardItem(kind: .graph, x: 100, y: 430, width: 420, height: 290, colorHex: "FFFFFF")
+        lectureGraph.text = "y = sin(x)\ny = cos(x)"
+        lectureGraph.domainMin = -6
+        lectureGraph.domainMax = 6
+        var lectureNote = BoardItem(kind: .sticky, x: 545, y: 450, width: 180, height: 180, colorHex: BoardItem.stickyColors[0])
+        lectureNote.text = "Revise before Friday!"
+        lecture.sortedPages.first?.items = [lectureGraph, lectureNote]
         lecture.updatedAt = .now.addingTimeInterval(-10)
 
         let board = Notebook.createCanvas(in: context, title: "Project Board", cover: .moss, paperStyle: .dots, paperColor: .white)
