@@ -99,6 +99,7 @@ struct LibraryView: View {
         }
         #if DEBUG
         .task {
+            DemoContent.exportIfRequested(from: notebooks)
             if let title = DemoContent.notebookTitleToOpen {
                 openNotebook = notebooks.first { $0.title == title }
             }
@@ -239,6 +240,12 @@ struct LibraryView: View {
                 }
             }
             .pickerStyle(.menu)
+        }
+        ShareLink(
+            item: NotebookExport(title: notebook.displayTitle) { notebook.snapshot },
+            preview: SharePreview(notebook.displayTitle)
+        ) {
+            Label("Export PDF", systemImage: "square.and.arrow.up")
         }
         Divider()
         Button("Delete", systemImage: "trash", role: .destructive) {

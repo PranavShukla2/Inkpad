@@ -7,7 +7,7 @@
 //
 
 #if DEBUG
-import Foundation
+import UIKit
 import PencilKit
 import SwiftData
 
@@ -38,7 +38,35 @@ enum DemoContent {
             notebook.isFavorite = index == 1 || index == 3
             notebook.updatedAt = .now.addingTimeInterval(-Double(index) * 5400)
         }
+        if let notebook = try? PDFImporter.makeNotebook(from: samplePDF(), in: context) {
+            notebook.sortedPages.first?.drawingData = scribbles().dataRepresentation()
+            notebook.updatedAt = .now.addingTimeInterval(-60)
+        }
         try? context.save()
+    }
+
+    /// Launch with `-exportNotebook Title` to write that notebook's PDF to Documents.
+    static func exportIfRequested(from notebooks: [Notebook]) {
+        guard let title = UserDefaults.standard.string(forKey: "exportNotebook"),
+              let notebook = notebooks.first(where: { $0.title == title }) else { return }
+        let url = URL.documentsDirectory.appending(path: "export.pdf")
+        try? NotebookPDFRenderer.render(notebook.snapshot).write(to: url)
+    }
+
+    private static func samplePDF() -> URL {
+        let url = URL.temporaryDirectory.appending(path: "Sample Reading.pdf")
+        let pageRect = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let data = UIGraphicsPDFRenderer(bounds: pageRect).pdfData { context in
+            for page in 1...3 {
+                context.beginPage()
+                let title = "Chapter \(page): Notes on Ink" as NSString
+                title.draw(at: CGPoint(x: 72, y: 72), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 26)])
+                let body = String(repeating: "The quick brown fox jumps over the lazy dog. ", count: 30) as NSString
+                body.draw(in: pageRect.insetBy(dx: 72, dy: 130), withAttributes: [.font: UIFont.systemFont(ofSize: 13)])
+            }
+        }
+        try? data.write(to: url)
+        return url
     }
 
     /// Wavy lines that look roughly like handwriting.
