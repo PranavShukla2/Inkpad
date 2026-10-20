@@ -100,6 +100,9 @@ struct LibraryView: View {
         #if DEBUG
         .task {
             DemoContent.exportIfRequested(from: notebooks)
+            if let text = UserDefaults.standard.string(forKey: "searchText") {
+                searchText = text
+            }
             if let title = DemoContent.notebookTitleToOpen {
                 openNotebook = notebooks.first { $0.title == title }
             }
