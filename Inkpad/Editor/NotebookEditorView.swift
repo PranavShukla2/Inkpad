@@ -84,6 +84,9 @@ struct NotebookEditorView: View {
         .onChange(of: tools.toolDisplayName) { _, name in
             announceTool(name)
         }
+        .onChange(of: tools.allowsFingerDrawing) { _, isOn in
+            announceTool(isOn ? "Finger draws · scroll with two fingers" : "Finger scrolls · Pencil draws")
+        }
         .onChange(of: tools.scrollAxis) { _, axis in
             model.setScrollAxis(axis)
         }
