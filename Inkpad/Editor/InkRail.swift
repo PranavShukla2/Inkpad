@@ -101,6 +101,9 @@ struct InkRail: View {
             RailButton(symbol: "ruler", label: "Ruler", isSelected: tools.isRulerActive, style: .toggle) {
                 tools.isRulerActive.toggle()
             }
+            RailButton(symbol: "angle", label: "Protractor", isSelected: tools.isProtractorActive, style: .toggle) {
+                tools.isProtractorActive.toggle()
+            }
             RailButton(symbol: "hand.draw", label: "Draw with Finger", isSelected: tools.allowsFingerDrawing, style: .toggle) {
                 tools.allowsFingerDrawing.toggle()
             }

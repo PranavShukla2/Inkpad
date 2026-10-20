@@ -158,6 +158,7 @@ final class ToolState {
     var eraserIsPartial = false { didSet { persist() } }
     var laserMode = LaserMode.trail { didSet { persist() } }
     var isRulerActive = false
+    var isProtractorActive = false
     var allowsFingerDrawing = false { didSet { persist() } }
     /// Left-handed layout: the Ink Rail sits on the right.
     var railOnRight = false { didSet { persist() } }

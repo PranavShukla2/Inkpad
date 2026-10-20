@@ -28,6 +28,7 @@ struct NotebookCanvas: UIViewRepresentable {
             tool: tools.pkTool,
             key: tools.toolKey,
             isRulerActive: tools.isRulerActive,
+            isProtractorActive: tools.isProtractorActive,
             allowsFingerDrawing: tools.allowsFingerDrawing,
             snapsShapes: tools.tool == .shape,
             laserColor: tools.tool == .laser ? tools.color : nil,

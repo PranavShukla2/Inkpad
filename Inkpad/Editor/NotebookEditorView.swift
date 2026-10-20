@@ -131,6 +131,9 @@ struct NotebookEditorView: View {
             if UserDefaults.standard.bool(forKey: "convertText") {
                 isConvertingToText = true
             }
+            if UserDefaults.standard.bool(forKey: "showProtractor") {
+                tools.isProtractorActive = true
+            }
             if UserDefaults.standard.bool(forKey: "showRuler") {
                 tools.isRulerActive = true
             }

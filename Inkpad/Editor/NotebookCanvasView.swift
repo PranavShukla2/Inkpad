@@ -82,6 +82,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private let ruler = RulerView()
     private var isRulerVisible = false
     private let rulerControls = RulerControlsView()
+    private let protractor = ProtractorView()
     private let addPageButton = AddPageButton()
     private let pullIndicator = PullToAddView()
     private let pullThreshold: CGFloat = 110
@@ -136,6 +137,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
         addSubview(ruler)
         addSubview(rulerControls)
+        protractor.isHidden = true
+        addSubview(protractor)
 
         addSubview(laserOverlay)
         laserRecognizer.isEnabled = false
@@ -311,6 +314,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         tool: @autoclosure () -> PKTool,
         key: String,
         isRulerActive: Bool,
+        isProtractorActive: Bool,
         allowsFingerDrawing: Bool,
         snapsShapes: Bool,
         laserColor: UIColor?,
@@ -346,6 +350,15 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
         if isRulerVisible != isRulerActive {
             showRuler(isRulerActive)
+        }
+        if protractor.isHidden == isProtractorActive {
+            protractor.alpha = isProtractorActive ? 0 : 1
+            protractor.isHidden = false
+            UIView.animate(withDuration: 0.2) {
+                self.protractor.alpha = isProtractorActive ? 1 : 0
+            } completion: { _ in
+                self.protractor.isHidden = !isProtractorActive
+            }
         }
         // With Pencil-only drawing, fingers scroll and zoom.
         let policy: PKCanvasViewDrawingPolicy = allowsFingerDrawing ? .anyInput : .pencilOnly
@@ -433,6 +446,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             canvasView.frame = bounds
             laserOverlay.frame = bounds
             ruler.frame = bounds
+            protractor.frame = bounds
             selectionChrome.frame = bounds
         }
         let controlsSize = rulerControls.sizeThatFits(bounds.size)
