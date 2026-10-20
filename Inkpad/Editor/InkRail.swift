@@ -43,7 +43,7 @@ struct InkRail: View {
             tools.isRailCollapsed = false
         } label: {
             VStack(spacing: 6) {
-                Image(systemName: tools.tool.symbol)
+                Image(systemName: tools.symbol(for: tools.tool))
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(.white)
                     .frame(width: 40, height: 40)
@@ -82,7 +82,12 @@ struct InkRail: View {
             .accessibilityLabel("Hide tools")
 
             ForEach(InkTool.allCases) { tool in
-                RailButton(symbol: tool.symbol, label: tool.name, isSelected: tools.tool == tool, selection: selection) {
+                RailButton(
+                    symbol: tools.symbol(for: tool),
+                    label: tool == .eraser ? tools.toolDisplayName : tool.name,
+                    isSelected: tools.tool == tool,
+                    selection: selection
+                ) {
                     tools.select(tool)
                 }
             }
@@ -124,10 +129,10 @@ struct InkRail: View {
                 widthOptions(color: tools.color.isVeryDark ? Theme.ink : Color(tools.color))
             }
         } else if tools.tool == .eraser {
-            RailButton(symbol: "scribble", label: "Erase Whole Strokes", isSelected: !tools.eraserIsPartial, style: .toggle) {
+            RailButton(symbol: "scribble", label: "Object Eraser", caption: "Object", isSelected: !tools.eraserIsPartial, style: .toggle) {
                 tools.eraserIsPartial = false
             }
-            RailButton(symbol: "eraser.line.dashed", label: "Erase Parts of Strokes", isSelected: tools.eraserIsPartial, style: .toggle) {
+            RailButton(symbol: "eraser.line.dashed", label: "Pixel Eraser", caption: "Pixel", isSelected: tools.eraserIsPartial, style: .toggle) {
                 tools.eraserIsPartial = true
             }
             if tools.eraserIsPartial {
@@ -179,6 +184,7 @@ private struct RailButton: View {
 
     let symbol: String
     let label: String
+    var caption: String? = nil
     let isSelected: Bool
     var style: Style = .tool
     /// Lets the selected tool's stamp disc slide between tools.
@@ -187,27 +193,38 @@ private struct RailButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(foreground)
-                .frame(width: 40, height: 40)
-                .background {
-                    if isSelected {
-                        if style == .tool, let selection {
-                            Circle()
-                                .fill(Theme.stamp)
-                                .matchedGeometryEffect(id: "selectedTool", in: selection)
-                        } else {
-                            Circle().fill(style == .tool ? Theme.stamp : Theme.ink.opacity(0.1))
-                        }
-                    }
+            VStack(spacing: 1) {
+                icon
+                if let caption {
+                    Text(caption)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(isSelected ? Theme.stamp : Theme.inkSecondary)
                 }
-                .contentShape(Circle())
+            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help(label)
+    }
+
+    private var icon: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 17, weight: .medium))
+            .foregroundStyle(foreground)
+            .frame(width: 40, height: caption == nil ? 40 : 30)
+            .background {
+                if isSelected {
+                    if style == .tool, let selection {
+                        Circle()
+                            .fill(Theme.stamp)
+                            .matchedGeometryEffect(id: "selectedTool", in: selection)
+                    } else {
+                        Circle().fill(style == .tool ? Theme.stamp : Theme.ink.opacity(0.1))
+                    }
+                }
+            }
+            .contentShape(Circle())
     }
 
     private var foreground: Color {

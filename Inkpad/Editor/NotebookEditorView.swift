@@ -14,6 +14,8 @@ struct NotebookEditorView: View {
     @State private var isShowingPages = false
     @State private var isShowingRecordings = false
     @State private var isConvertingToText = false
+    @State private var toolAnnouncement: String?
+    @State private var announcementTask: Task<Void, Never>?
     @State private var recorder = AudioRecorder()
     @State private var renameText = ""
 
@@ -42,6 +44,22 @@ struct NotebookEditorView: View {
                 .padding(.top, topBarHeight + 12)
                 .padding(.bottom, 56)
 
+                if let toolAnnouncement {
+                    Text(toolAnnouncement)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(Theme.deskRaised, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 0.5))
+                        .shadow(color: .black.opacity(0.12), radius: 10, y: 3)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .padding(.top, topBarHeight + 64)
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+
                 VStack(spacing: 0) {
                     topBar
                     Spacer(minLength: 0)
@@ -50,6 +68,9 @@ struct NotebookEditorView: View {
                     }
                 }
             }
+        }
+        .onChange(of: tools.toolDisplayName) { _, name in
+            announceTool(name)
         }
         .onChange(of: tools.scrollAxis) { _, axis in
             model.setScrollAxis(axis)
@@ -271,6 +292,21 @@ struct NotebookEditorView: View {
         .buttonStyle(.plain)
         .padding(.bottom, 12)
         .accessibilityLabel("Page \(model.currentPageIndex + 1) of \(model.pages.count). Show all pages.")
+    }
+
+    /// Briefly names the tool you switched to, e.g. "Pixel Eraser".
+    private func announceTool(_ name: String) {
+        announcementTask?.cancel()
+        withAnimation(.snappy) {
+            toolAnnouncement = name
+        }
+        announcementTask = Task {
+            try? await Task.sleep(for: .seconds(1.1))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                toolAnnouncement = nil
+            }
+        }
     }
 
     private func showPages() {

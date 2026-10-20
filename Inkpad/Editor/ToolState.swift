@@ -140,12 +140,28 @@ final class ToolState {
         colors[tool] ?? tool.palette[0]
     }
 
+    /// The tool's name as shown to the user, including the eraser mode.
+    var toolDisplayName: String {
+        guard tool == .eraser else { return tool.name }
+        return eraserIsPartial ? "Pixel Eraser" : "Object Eraser"
+    }
+
+    func symbol(for tool: InkTool) -> String {
+        tool == .eraser && eraserIsPartial ? "eraser.line.dashed" : tool.symbol
+    }
+
     var widthIndex: Int {
         widthIndices[tool] ?? 1
     }
 
+    /// Tapping the selected eraser switches between Object and Pixel, like Notes.
     func select(_ newTool: InkTool) {
-        guard newTool != tool else { return }
+        guard newTool != tool else {
+            if tool == .eraser {
+                eraserIsPartial.toggle()
+            }
+            return
+        }
         previousTool = tool
         tool = newTool
         persist()
