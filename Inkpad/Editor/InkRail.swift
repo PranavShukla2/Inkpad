@@ -11,6 +11,21 @@ struct InkRail: View {
     @Bindable var tools: ToolState
 
     var body: some View {
+        Group {
+            if tools.isRailCollapsed {
+                collapsed
+                    .transition(.scale(scale: 0.6, anchor: .top).combined(with: .opacity))
+            } else {
+                expanded
+                    .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
+            }
+        }
+        .sensoryFeedback(.selection, trigger: tools.tool)
+        .animation(.snappy(duration: 0.22), value: tools.tool)
+        .animation(.snappy(duration: 0.28), value: tools.isRailCollapsed)
+    }
+
+    private var expanded: some View {
         ViewThatFits(in: .vertical) {
             content
             ScrollView(.vertical, showsIndicators: false) {
@@ -18,21 +33,52 @@ struct InkRail: View {
             }
         }
         .frame(width: 52)
-        .background {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(Theme.deskRaised)
-                .shadow(color: .black.opacity(0.14), radius: 14, y: 4)
+        .background(RailBackground())
+    }
+
+    /// Just the current tool, so the page is free to write on.
+    private var collapsed: some View {
+        Button {
+            tools.isRailCollapsed = false
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: tools.tool.symbol)
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Theme.stamp))
+                if tools.tool.isInking {
+                    Circle()
+                        .fill(Color(tools.color))
+                        .overlay(Circle().strokeBorder(Theme.inkSecondary.opacity(0.45), lineWidth: 1))
+                        .frame(width: 14, height: 14)
+                }
+                Image(systemName: tools.railOnRight ? "chevron.compact.left" : "chevron.compact.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.inkSecondary)
+            }
+            .padding(.vertical, 6)
+            .frame(width: 52)
+            .background(RailBackground())
         }
-        .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .strokeBorder(Theme.hairline, lineWidth: 0.5)
-        }
-        .sensoryFeedback(.selection, trigger: tools.tool)
-        .animation(.snappy(duration: 0.22), value: tools.tool)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Show tools")
     }
 
     private var content: some View {
         VStack(spacing: 4) {
+            Button {
+                tools.isRailCollapsed = true
+            } label: {
+                Image(systemName: "chevron.compact.up")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.inkSecondary)
+                    .frame(width: 40, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hide tools")
+
             ForEach(InkTool.allCases) { tool in
                 RailButton(symbol: tool.symbol, label: tool.name, isSelected: tools.tool == tool) {
                     tools.select(tool)
@@ -106,6 +152,18 @@ struct InkRail: View {
             .buttonStyle(.plain)
             .accessibilityLabel(["Thin", "Medium", "Thick"][index])
         }
+    }
+}
+
+private struct RailBackground: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 26, style: .continuous)
+            .fill(Theme.deskRaised)
+            .shadow(color: .black.opacity(0.14), radius: 14, y: 4)
+            .overlay {
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .strokeBorder(Theme.hairline, lineWidth: 0.5)
+            }
     }
 }
 

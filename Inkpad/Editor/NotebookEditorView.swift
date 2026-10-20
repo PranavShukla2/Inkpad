@@ -17,7 +17,6 @@ struct NotebookEditorView: View {
     @State private var renameText = ""
 
     private let topBarHeight: CGFloat = 56
-    private let railColumnWidth: CGFloat = 72
 
     init(notebook: Notebook) {
         _model = State(initialValue: NotebookEditorModel(notebook: notebook))
@@ -28,24 +27,19 @@ struct NotebookEditorView: View {
             ZStack {
                 Theme.desk.ignoresSafeArea()
 
-                HStack(spacing: 0) {
-                    if !tools.railOnRight {
-                        Color.clear.frame(width: railColumnWidth)
-                    }
-                    NotebookCanvas(model: model, tools: tools, topInset: proxy.safeAreaInsets.top + topBarHeight)
-                    if tools.railOnRight {
-                        Color.clear.frame(width: railColumnWidth)
-                    }
-                }
-                .ignoresSafeArea()
+                NotebookCanvas(model: model, tools: tools, topInset: proxy.safeAreaInsets.top + topBarHeight)
+                    .ignoresSafeArea()
 
+                // The rail floats over the page and can fold away.
                 HStack {
                     if tools.railOnRight { Spacer() }
                     InkRail(tools: tools)
                         .padding(.horizontal, 10)
                     if !tools.railOnRight { Spacer() }
                 }
-                .padding(.top, topBarHeight)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.top, topBarHeight + 12)
+                .padding(.bottom, 56)
 
                 VStack(spacing: 0) {
                     topBar
