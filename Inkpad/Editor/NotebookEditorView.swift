@@ -42,7 +42,9 @@ struct NotebookEditorView: View {
             ZStack {
                 Theme.desk.ignoresSafeArea()
 
-                NotebookCanvas(model: model, tools: tools, topInset: proxy.safeAreaInsets.top + topBarHeight)
+                NotebookCanvas(model: model, tools: tools, topInset: proxy.safeAreaInsets.top + topBarHeight) { message in
+                    announceTool(message)
+                }
                     .ignoresSafeArea()
 
                 // The rail floats over the page and can fold away.
@@ -109,6 +111,11 @@ struct NotebookEditorView: View {
             if UserDefaults.standard.bool(forKey: "scrollToEnd") {
                 try? await Task.sleep(for: .seconds(1))
                 model.scrollToPage(model.pages.count - 1)
+            }
+            let undoDelay = UserDefaults.standard.double(forKey: "undoAfterSeconds")
+            if undoDelay > 0 {
+                try? await Task.sleep(for: .seconds(undoDelay))
+                model.undo()
             }
             if UserDefaults.standard.bool(forKey: "convertText") {
                 isConvertingToText = true
