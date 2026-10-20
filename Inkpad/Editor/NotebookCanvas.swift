@@ -25,7 +25,8 @@ struct NotebookCanvas: UIViewRepresentable {
         canvas.apply(
             tool: tools.pkTool,
             isRulerActive: tools.isRulerActive,
-            allowsFingerDrawing: tools.allowsFingerDrawing
+            allowsFingerDrawing: tools.allowsFingerDrawing,
+            snapsShapes: tools.tool == .shape
         )
     }
 }

@@ -12,7 +12,6 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     let canvasView = PKCanvasView()
 
     var onDrawingChanged: (() -> Void)?
-    var onStrokeEnded: (() -> Void)?
     var onCurrentPageChanged: ((Int) -> Void)?
     var onPencilTap: ((UIPencilPreferredAction) -> Void)?
 
@@ -32,6 +31,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private var slots: [Int: PageSlotView] = [:]
     private var fitScale: CGFloat = 0
     private var isLoading = false
+    /// Snap new strokes to clean shapes (the Shapes tool).
+    private var snapsShapes = false
+    private var isSnapping = false
+    private var strokeCount = 0
     /// A page to show once the view has a size.
     private var pendingScrollIndex: Int?
 
@@ -84,6 +87,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
         canvasView.drawing = layout.merge(specs.map(\.drawing))
         canvasView.undoManager?.removeAllActions()
+        strokeCount = canvasView.drawing.strokes.count
 
         fitScale = 0
         pendingScrollIndex = pageIndex
@@ -106,7 +110,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     // MARK: - Tools
 
-    func apply(tool: PKTool, isRulerActive: Bool, allowsFingerDrawing: Bool) {
+    func apply(tool: PKTool, isRulerActive: Bool, allowsFingerDrawing: Bool, snapsShapes: Bool) {
+        self.snapsShapes = snapsShapes
         canvasView.tool = tool
         canvasView.isRulerActive = isRulerActive
         // With Pencil-only drawing, fingers scroll and zoom.
@@ -179,11 +184,30 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
         guard !isLoading else { return }
+        let addedOneStroke = canvasView.drawing.strokes.count == strokeCount + 1
+        strokeCount = canvasView.drawing.strokes.count
+        if snapsShapes, !isSnapping, addedOneStroke {
+            snapLastStroke()
+        }
         onDrawingChanged?()
     }
 
-    func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
-        onStrokeEnded?()
+    /// Replaces the stroke just drawn with a clean shape, undoably.
+    private func snapLastStroke() {
+        let before = canvasView.drawing
+        guard let stroke = before.strokes.last, let shape = ShapeRecognizer.recognize(stroke) else { return }
+        var after = before
+        after.strokes[after.strokes.count - 1] = shape
+        setDrawing(after, undoingTo: before)
+    }
+
+    private func setDrawing(_ drawing: PKDrawing, undoingTo previous: PKDrawing) {
+        isSnapping = true
+        canvasView.drawing = drawing
+        isSnapping = false
+        canvasView.undoManager?.registerUndo(withTarget: self) { target in
+            target.setDrawing(previous, undoingTo: drawing)
+        }
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {

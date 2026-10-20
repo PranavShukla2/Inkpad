@@ -11,6 +11,7 @@ enum InkTool: String, CaseIterable, Identifiable {
     case fountain
     case pencil
     case highlighter
+    case shape
     case eraser
     case lasso
 
@@ -22,6 +23,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .fountain: "Fountain Pen"
         case .pencil: "Pencil"
         case .highlighter: "Highlighter"
+        case .shape: "Shapes"
         case .eraser: "Eraser"
         case .lasso: "Lasso"
         }
@@ -33,6 +35,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .fountain: "signature"
         case .pencil: "pencil"
         case .highlighter: "highlighter"
+        case .shape: "square.on.circle"
         case .eraser: "eraser"
         case .lasso: "lasso"
         }
@@ -50,6 +53,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .fountain: .fountainPen
         case .pencil: .pencil
         case .highlighter: .marker
+        case .shape: .monoline
         default: .pen
         }
     }
@@ -60,6 +64,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .fountain: [2, 4, 7]
         case .pencil: [2, 4, 8]
         case .highlighter: [12, 20, 30]
+        case .shape: [1.5, 3, 5.5]
         case .eraser: [8, 20, 40]
         case .lasso: []
         }
