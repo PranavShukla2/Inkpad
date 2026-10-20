@@ -12,11 +12,13 @@ struct NoteEditorView: View {
     // Loaded once so the canvas isn't re-decoded on every stroke.
     @State private var initialDrawing: PKDrawing
     @State private var document: PDFDocument?
+    @State private var initialPageDrawingData: [Int: Data]
 
     init(note: Note) {
         _note = Bindable(note)
         _initialDrawing = State(initialValue: note.drawing)
         _document = State(initialValue: note.pdfData.flatMap { PDFDocument(data: $0) })
+        _initialPageDrawingData = State(initialValue: note.pageDrawingData)
     }
 
     var body: some View {
@@ -39,7 +41,9 @@ struct NoteEditorView: View {
     @ViewBuilder
     private var content: some View {
         if let document {
-            PDFAnnotationView(document: document)
+            PDFAnnotationView(document: document, pageDrawingData: initialPageDrawingData) { pages in
+                note.pageDrawingData = pages
+            }
         } else {
             CanvasView(drawing: initialDrawing) { drawing in
                 note.drawing = drawing
