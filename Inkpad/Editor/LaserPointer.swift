@@ -40,14 +40,20 @@ final class LaserGestureRecognizer: UIGestureRecognizer {
     }
 }
 
-/// Draws glowing laser trails that fade away shortly after the Pencil lifts.
+/// Draws glowing laser trails. Everything written stays visible while you keep
+/// writing, then the whole lot fades together once you pause.
 /// Nothing here is ever added to the notebook.
 final class LaserOverlayView: UIView {
     var color: UIColor = UIColor(hex: 0xFF3B30)
+    /// How long a pause has to be before the trails fade.
+    static let pauseBeforeFading: TimeInterval = 1.5
 
     private var points: [CGPoint] = []
     private var glowLayer: CAShapeLayer?
     private var coreLayer: CAShapeLayer?
+    /// Finished trails still on screen, waiting for a pause.
+    private var trails: [CAShapeLayer] = []
+    private var fadeWork: DispatchWorkItem?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -59,6 +65,8 @@ final class LaserOverlayView: UIView {
     }
 
     func begin(at point: CGPoint) {
+        // Still writing: keep everything so far on screen.
+        fadeWork?.cancel()
         points = [point]
         let glow = CAShapeLayer()
         glow.fillColor = nil
@@ -94,20 +102,32 @@ final class LaserOverlayView: UIView {
         guard let glow = glowLayer, let core = coreLayer else { return }
         glowLayer = nil
         coreLayer = nil
-        for trail in [glow, core] {
+        trails.append(contentsOf: [glow, core])
+
+        let work = DispatchWorkItem { [weak self] in
+            self?.fadeAllTrails()
+        }
+        fadeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pauseBeforeFading, execute: work)
+    }
+
+    private func fadeAllTrails() {
+        let fading = trails
+        trails = []
+        CATransaction.begin()
+        CATransaction.setCompletionBlock {
+            fading.forEach { $0.removeFromSuperlayer() }
+        }
+        for trail in fading {
             let fade = CABasicAnimation(keyPath: "opacity")
             fade.fromValue = 1
             fade.toValue = 0
-            fade.beginTime = CACurrentMediaTime() + 0.8
-            fade.duration = 0.5
+            fade.duration = 0.45
             fade.fillMode = .forwards
             fade.isRemovedOnCompletion = false
             trail.add(fade, forKey: "fade")
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) {
-            glow.removeFromSuperlayer()
-            core.removeFromSuperlayer()
-        }
+        CATransaction.commit()
     }
 
     /// Smooths the trail with curves through the midpoints of the samples.
