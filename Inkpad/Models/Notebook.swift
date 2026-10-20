@@ -77,6 +77,11 @@ final class Notebook {
 
     var isCanvas: Bool { kind == .canvas }
 
+    /// Identifies the notebook when it's dragged onto a folder.
+    var dragID: String {
+        (try? JSONEncoder().encode(persistentModelID))?.base64EncodedString() ?? ""
+    }
+
     var coverDraft: CoverDraft {
         get {
             CoverDraft(

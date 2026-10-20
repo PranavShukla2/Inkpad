@@ -8,7 +8,10 @@ import SwiftData
 import UniformTypeIdentifiers
 
 enum LibrarySection: Hashable {
-    case all
+    /// Folders plus the notebooks that aren't in one.
+    case library
+    /// Everything, newest first.
+    case recents
     case favorites
     case documents
     case canvases
@@ -38,7 +41,7 @@ struct LibraryView: View {
     @Query(sort: \Notebook.updatedAt, order: .reverse) private var notebooks: [Notebook]
     @Query(sort: \Folder.name) private var folders: [Folder]
     @AppStorage("librarySort") private var sort = LibrarySort.modified
-    @State private var section: LibrarySection? = .all
+    @State private var section: LibrarySection? = .library
     @State private var searchText = ""
     @State private var openNotebook: Notebook?
     @State private var notebookToOpenAfterSheet: Notebook?
@@ -54,6 +57,7 @@ struct LibraryView: View {
     @State private var folderToDelete: Folder?
     @State private var folderNameText = ""
     @State private var importErrorMessage: String?
+    @State private var dropTargetFolder: Folder?
     @Namespace private var transitionNamespace
 
     var body: some View {
@@ -135,12 +139,12 @@ struct LibraryView: View {
         ) { folder in
             Button("Delete “\(folder.name)”", role: .destructive) {
                 if section == .folder(folder) {
-                    section = .all
+                    section = .library
                 }
                 modelContext.delete(folder)
             }
         } message: { _ in
-            Text("Notebooks inside it are kept and move back to All Notebooks.")
+            Text("Notebooks inside it are kept and move back to the Library.")
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
@@ -167,8 +171,10 @@ struct LibraryView: View {
 
     private var sidebar: some View {
         List(selection: $section) {
-            Label("All Notebooks", systemImage: "books.vertical")
-                .tag(LibrarySection.all)
+            Label("Library", systemImage: "books.vertical")
+                .tag(LibrarySection.library)
+            Label("Recents", systemImage: "clock")
+                .tag(LibrarySection.recents)
             Label("Favourites", systemImage: "star")
                 .tag(LibrarySection.favorites)
             Label("Documents", systemImage: "doc.richtext")
@@ -178,18 +184,20 @@ struct LibraryView: View {
 
             Section {
                 ForEach(folders) { folder in
-                    Label(folder.name, systemImage: "folder")
-                        .badge(folder.notebooks.count)
-                        .tag(LibrarySection.folder(folder))
-                        .contextMenu {
-                            Button("Rename", systemImage: "pencil") {
-                                folderNameText = folder.name
-                                folderBeingRenamed = folder
-                            }
-                            Button("Delete Folder", systemImage: "trash", role: .destructive) {
-                                folderToDelete = folder
-                            }
-                        }
+                    Label {
+                        Text(folder.name)
+                    } icon: {
+                        Image(systemName: "folder.fill")
+                            .foregroundStyle(Color(folder.color))
+                    }
+                    .badge(folder.notebooks.count)
+                    .tag(LibrarySection.folder(folder))
+                    .contextMenu {
+                        folderMenu(folder)
+                    }
+                    .dropDestination(for: String.self) { items, _ in
+                        file(items, into: folder)
+                    }
                 }
                 Button {
                     startCreatingFolder()
@@ -212,11 +220,17 @@ struct LibraryView: View {
     private var shelf: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                Text(sectionTitle)
-                    .font(.serif(.largeTitle, weight: .bold))
-                    .foregroundStyle(Theme.ink)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(sectionTitle)
+                        .font(.serif(.largeTitle, weight: .bold))
+                        .foregroundStyle(Theme.ink)
+                    Text(sectionSubtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSecondary)
+                        .contentTransition(.numericText())
+                }
 
-                if visibleNotebooks.isEmpty {
+                if visibleNotebooks.isEmpty && visibleFolders.isEmpty {
                     emptyState
                         .frame(maxWidth: .infinity)
                         .padding(.top, 80)
@@ -226,6 +240,9 @@ struct LibraryView: View {
                         alignment: .leading,
                         spacing: 36
                     ) {
+                        ForEach(visibleFolders) { folder in
+                            folderCell(folder)
+                        }
                         ForEach(visibleNotebooks) { notebook in
                             notebookCell(notebook)
                         }
@@ -269,6 +286,11 @@ struct LibraryView: View {
                     Label("Sort", systemImage: "arrow.up.arrow.down")
                 }
                 Button {
+                    startCreatingFolder()
+                } label: {
+                    Label("New Folder", systemImage: "folder.badge.plus")
+                }
+                Button {
                     isImportingPDF = true
                 } label: {
                     Label("Import PDF", systemImage: "doc.badge.arrow.up")
@@ -307,6 +329,10 @@ struct LibraryView: View {
             }
             .buttonStyle(PressableButtonStyle())
             .zoomTransitionSource(id: notebook.persistentModelID, in: transitionNamespace)
+            .draggable(notebook.dragID) {
+                NotebookCoverView(title: notebook.displayTitle, draft: notebook.coverDraft, coverImageData: notebook.coverImageData, isPDF: notebook.isPDF, isCanvas: notebook.isCanvas)
+                    .frame(width: 120)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(notebook.displayTitle)
@@ -328,6 +354,85 @@ struct LibraryView: View {
         .contextMenu {
             notebookMenu(notebook)
         }
+    }
+
+    private func folderCell(_ folder: Folder) -> some View {
+        let isTargeted = dropTargetFolder == folder
+        return VStack(alignment: .leading, spacing: 10) {
+            Button {
+                section = .folder(folder)
+            } label: {
+                FolderTileView(
+                    name: folder.name,
+                    color: folder.color,
+                    notebooks: folder.notebooks.sorted { $0.updatedAt > $1.updatedAt },
+                    isDropTargeted: isTargeted
+                )
+            }
+            .buttonStyle(PressableButtonStyle())
+            .dropDestination(for: String.self) { items, _ in
+                file(items, into: folder)
+            } isTargeted: { targeted in
+                dropTargetFolder = targeted ? folder : (dropTargetFolder == folder ? nil : dropTargetFolder)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(folder.name)
+                    .font(.serif(.subheadline))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                Text(folder.notebooks.count == 1 ? "1 notebook" : "\(folder.notebooks.count) notebooks")
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSecondary)
+            }
+        }
+        .contextMenu {
+            folderMenu(folder)
+        }
+    }
+
+    @ViewBuilder
+    private func folderMenu(_ folder: Folder) -> some View {
+        Button("Open", systemImage: "folder") {
+            section = .folder(folder)
+        }
+        Button("Rename", systemImage: "pencil") {
+            folderNameText = folder.name
+            folderBeingRenamed = folder
+        }
+        Menu("Colour", systemImage: "paintpalette") {
+            Button("Kraft") {
+                folder.colorHex = nil
+            }
+            ForEach(CoverStyle.allCases) { style in
+                Button(style.name) {
+                    folder.colorHex = style.color.hexString
+                }
+            }
+        }
+        Divider()
+        Button("Delete Folder", systemImage: "trash", role: .destructive) {
+            folderToDelete = folder
+        }
+    }
+
+    /// Files dragged notebooks into a folder.
+    private func file(_ items: [String], into folder: Folder) -> Bool {
+        let dropped = items.compactMap(notebook(fromDragID:))
+        guard !dropped.isEmpty else { return false }
+        withAnimation(.snappy) {
+            for notebook in dropped {
+                notebook.folder = folder
+            }
+        }
+        dropTargetFolder = nil
+        return true
+    }
+
+    private func notebook(fromDragID dragID: String) -> Notebook? {
+        guard let data = Data(base64Encoded: dragID),
+              let id = try? JSONDecoder().decode(PersistentIdentifier.self, from: data) else { return nil }
+        return modelContext.model(for: id) as? Notebook
     }
 
     @ViewBuilder
@@ -404,10 +509,18 @@ struct LibraryView: View {
 
     // MARK: - Filtering
 
+    /// Folders sit at the top of the Library, unless searching.
+    private var visibleFolders: [Folder] {
+        guard (section ?? .library) == .library, searchText.isEmpty else { return [] }
+        return folders
+    }
+
     private var visibleNotebooks: [Notebook] {
         let inSection = notebooks.filter { notebook in
-            switch section ?? .all {
-            case .all: true
+            switch section ?? .library {
+            // Search the whole library, including inside folders.
+            case .library: notebook.folder == nil || !searchText.isEmpty
+            case .recents: true
             case .favorites: notebook.isFavorite
             case .documents: notebook.isPDF
             case .canvases: notebook.isCanvas
@@ -444,9 +557,18 @@ struct LibraryView: View {
         return nil
     }
 
+    private var sectionSubtitle: String {
+        let notebookCount = visibleNotebooks.count
+        let notebooksText = notebookCount == 1 ? "1 notebook" : "\(notebookCount) notebooks"
+        guard !visibleFolders.isEmpty else { return notebooksText }
+        let foldersText = visibleFolders.count == 1 ? "1 folder" : "\(visibleFolders.count) folders"
+        return "\(foldersText) · \(notebooksText)"
+    }
+
     private var sectionTitle: String {
-        switch section ?? .all {
-        case .all: "All Notebooks"
+        switch section ?? .library {
+        case .library: "Library"
+        case .recents: "Recents"
         case .favorites: "Favourites"
         case .documents: "Documents"
         case .canvases: "Canvases"
@@ -455,8 +577,8 @@ struct LibraryView: View {
     }
 
     private var emptyTitle: String {
-        switch section ?? .all {
-        case .all: "Your shelf is empty"
+        switch section ?? .library {
+        case .library, .recents: "Your shelf is empty"
         case .favorites: "No favourites yet"
         case .documents: "No documents yet"
         case .canvases: "No canvases yet"
@@ -465,12 +587,12 @@ struct LibraryView: View {
     }
 
     private var emptyMessage: String {
-        switch section ?? .all {
-        case .all: "Create a notebook to start writing."
+        switch section ?? .library {
+        case .library, .recents: "Create a notebook to start writing."
         case .favorites: "Long-press a notebook and add it to your favourites."
         case .documents: "Imported PDFs appear here."
         case .canvases: "Create a canvas for an endless board to sketch and plan on."
-        case .folder: "Long-press a notebook and choose Move to Folder."
+        case .folder: "Drag a notebook onto this folder, or long-press it and choose Move to Folder."
         }
     }
 
