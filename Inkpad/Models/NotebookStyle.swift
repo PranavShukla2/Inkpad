@@ -166,3 +166,63 @@ nonisolated enum PageSizeOption: String, CaseIterable, Identifiable, Sendable {
         }
     }
 }
+
+nonisolated enum CoverDesign: String, CaseIterable, Identifiable, Sendable {
+    case cloth
+    case leather
+    case linen
+    case stripes
+    case grid
+    case dots
+    case waves
+    case terrazzo
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .cloth: "Cloth"
+        case .leather: "Leather"
+        case .linen: "Linen"
+        case .stripes: "Stripes"
+        case .grid: "Grid"
+        case .dots: "Dots"
+        case .waves: "Waves"
+        case .terrazzo: "Terrazzo"
+        }
+    }
+}
+
+nonisolated enum CoverLabelStyle: String, CaseIterable, Identifiable, Sendable {
+    case plate
+    case band
+    case corner
+    case none
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .plate: "Plate"
+        case .band: "Band"
+        case .corner: "Corner"
+        case .none: "None"
+        }
+    }
+}
+
+/// Everything about how a notebook's cover looks, editable as one value.
+nonisolated struct CoverDraft: Equatable, Sendable {
+    var preset: CoverStyle = .ink
+    /// A custom colour that overrides the preset.
+    var customColorHex: String?
+    var design: CoverDesign = .cloth
+    var labelStyle: CoverLabelStyle = .plate
+    var emblem = ""
+    var hasRibbon = true
+    var photoData: Data?
+
+    var color: UIColor {
+        customColorHex.flatMap(UIColor.init(hexString:)) ?? preset.color
+    }
+}

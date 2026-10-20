@@ -9,13 +9,13 @@ struct NewNotebookSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var kind = NotebookKind.notebook
     @State private var title = ""
-    @State private var cover = CoverStyle.allCases.randomElement() ?? .ink
+    @State private var cover = CoverDraft(preset: CoverStyle.allCases.randomElement() ?? .ink)
     @State private var paperStyle = PaperStyle.lined
     @State private var paperColor = PaperColor.white
     @State private var pageSize = PageSizeOption.fitScreen
     @FocusState private var isTitleFocused: Bool
 
-    let onCreate: (NotebookKind, String, CoverStyle, PaperStyle, PaperColor, CGSize) -> Void
+    let onCreate: (NotebookKind, String, CoverDraft, PaperStyle, PaperColor, CGSize) -> Void
 
     var body: some View {
         NavigationStack {
@@ -29,7 +29,7 @@ struct NewNotebookSheet: View {
                     .frame(maxWidth: 360)
 
                     HStack(alignment: .top, spacing: 28) {
-                        NotebookCoverView(title: displayTitle, cover: cover, isCanvas: kind == .canvas)
+                        NotebookCoverView(title: displayTitle, draft: cover, isCanvas: kind == .canvas)
                             .frame(width: 150)
                             .animation(.snappy, value: cover)
                             .animation(.snappy, value: kind)
@@ -49,14 +49,15 @@ struct NewNotebookSheet: View {
                             LazyVGrid(columns: Array(repeating: GridItem(.fixed(36), spacing: 12), count: 4), alignment: .leading, spacing: 12) {
                                 ForEach(CoverStyle.allCases) { style in
                                     Button {
-                                        cover = style
+                                        cover.preset = style
+                                        cover.customColorHex = nil
                                     } label: {
                                         Circle()
                                             .fill(Color(style.color))
                                             .frame(width: 30, height: 30)
                                             .padding(3)
                                             .overlay {
-                                                if cover == style {
+                                                if cover.customColorHex == nil && cover.preset == style {
                                                     Circle().strokeBorder(Theme.ink, lineWidth: 2)
                                                 }
                                             }
@@ -64,6 +65,12 @@ struct NewNotebookSheet: View {
                                     .buttonStyle(.plain)
                                     .accessibilityLabel(style.name)
                                 }
+                            }
+                            NavigationLink {
+                                CoverEditorView(draft: $cover, title: displayTitle, isCanvas: kind == .canvas)
+                            } label: {
+                                Label("Customise Cover", systemImage: "paintpalette")
+                                    .font(.subheadline.weight(.semibold))
                             }
                         }
                     }

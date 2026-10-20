@@ -46,6 +46,7 @@ struct LibraryView: View {
     @State private var notebookBeingRenamed: Notebook?
     @State private var renameText = ""
     @State private var notebookToDelete: Notebook?
+    @State private var notebookBeingCustomised: Notebook?
     @State private var isImportingPDF = false
     @State private var isCreatingFolder = false
     @State private var notebookToFileInNewFolder: Notebook?
@@ -69,14 +70,15 @@ struct LibraryView: View {
                     Notebook.create(
                         in: modelContext,
                         title: title,
-                        cover: cover,
+                        cover: cover.preset,
                         paperStyle: paperStyle,
                         paperColor: paperColor,
                         pageSize: pageSize
                     )
                 case .canvas:
-                    Notebook.createCanvas(in: modelContext, title: title, cover: cover, paperStyle: paperStyle, paperColor: paperColor)
+                    Notebook.createCanvas(in: modelContext, title: title, cover: cover.preset, paperStyle: paperStyle, paperColor: paperColor)
                 }
+                notebook.coverDraft = cover
                 notebook.folder = selectedFolder
                 notebookToOpenAfterSheet = notebook
             }
@@ -148,6 +150,9 @@ struct LibraryView: View {
         #if DEBUG
         .task {
             DemoContent.exportIfRequested(from: notebooks)
+            if let title = UserDefaults.standard.string(forKey: "customiseCover") {
+                notebookBeingCustomised = notebooks.first { $0.title == title }
+            }
             if let text = UserDefaults.standard.string(forKey: "searchText") {
                 searchText = text
             }
@@ -231,6 +236,23 @@ struct LibraryView: View {
             .padding(.vertical, 16)
         }
         .background(Theme.desk)
+        .sheet(item: $notebookBeingCustomised) { notebook in
+            NavigationStack {
+                CoverEditorView(
+                    draft: Binding(get: { notebook.coverDraft }, set: { notebook.coverDraft = $0 }),
+                    title: notebook.displayTitle,
+                    isCanvas: notebook.isCanvas
+                )
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            notebookBeingCustomised = nil
+                        }
+                    }
+                }
+            }
+            .tint(Theme.stamp)
+        }
         .searchable(text: $searchText, prompt: "Search")
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -276,7 +298,7 @@ struct LibraryView: View {
             } label: {
                 NotebookCoverView(
                     title: notebook.displayTitle,
-                    cover: notebook.cover,
+                    draft: notebook.coverDraft,
                     coverImageData: notebook.coverImageData,
                     isPDF: notebook.isPDF,
                     isCanvas: notebook.isCanvas,
@@ -321,12 +343,9 @@ struct LibraryView: View {
             notebook.isFavorite.toggle()
         }
         if !notebook.isPDF {
-            Picker("Cover", selection: Binding(get: { notebook.cover }, set: { notebook.cover = $0 })) {
-                ForEach(CoverStyle.allCases) { style in
-                    Text(style.name).tag(style)
-                }
+            Button("Customise Cover…", systemImage: "paintpalette") {
+                notebookBeingCustomised = notebook
             }
-            .pickerStyle(.menu)
         }
         Menu("Move to Folder", systemImage: "folder") {
             Button("None") {

@@ -17,6 +17,13 @@ final class Notebook {
     var isFavorite: Bool = false
     var currentPageIndex: Int = 0
     var kindRaw: String = NotebookKind.notebook.rawValue
+    var coverColorHex: String?
+    var coverDesignRaw: String = CoverDesign.cloth.rawValue
+    var coverLabelRaw: String = CoverLabelStyle.plate.rawValue
+    var coverEmblem: String = ""
+    var hasRibbon: Bool = true
+    /// A photo the user chose for the cover.
+    @Attribute(.externalStorage) var coverPhotoData: Data?
     /// Size for new pages; zero means the standard A4 size.
     var pageWidth: Double = 0
     var pageHeight: Double = 0
@@ -69,6 +76,29 @@ final class Notebook {
     }
 
     var isCanvas: Bool { kind == .canvas }
+
+    var coverDraft: CoverDraft {
+        get {
+            CoverDraft(
+                preset: cover,
+                customColorHex: coverColorHex,
+                design: CoverDesign(rawValue: coverDesignRaw) ?? .cloth,
+                labelStyle: CoverLabelStyle(rawValue: coverLabelRaw) ?? .plate,
+                emblem: coverEmblem,
+                hasRibbon: hasRibbon,
+                photoData: coverPhotoData
+            )
+        }
+        set {
+            cover = newValue.preset
+            coverColorHex = newValue.customColorHex
+            coverDesignRaw = newValue.design.rawValue
+            coverLabelRaw = newValue.labelStyle.rawValue
+            coverEmblem = newValue.emblem
+            hasRibbon = newValue.hasRibbon
+            coverPhotoData = newValue.photoData
+        }
+    }
 
     var displayTitle: String {
         title.trimmingCharacters(in: .whitespaces).isEmpty ? Notebook.defaultTitle : title
