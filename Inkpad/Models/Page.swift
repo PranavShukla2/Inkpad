@@ -15,6 +15,8 @@ final class Page {
     /// Set when the page shows a page of the notebook's PDF behind the ink.
     var pdfPageIndex: Int?
     @Attribute(.externalStorage) var drawingData: Data?
+    /// Typed text boxes on the page, encoded as JSON.
+    var textBoxesData: Data?
     /// Handwriting found on the page, used by search.
     var recognizedText: String = ""
     /// Text from the imported PDF page, used by search.
@@ -35,6 +37,16 @@ final class Page {
 
     var size: CGSize {
         CGSize(width: width, height: height)
+    }
+
+    var textBoxes: [TextBox] {
+        get { TextBox.decode(textBoxesData) }
+        set { textBoxesData = TextBox.encode(newValue) }
+    }
+
+    /// Everything typed on the page, for search.
+    var typedText: String {
+        textBoxes.map(\.text).joined(separator: "\n")
     }
 
     var paperStyle: PaperStyle {

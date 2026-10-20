@@ -13,6 +13,7 @@ enum InkTool: String, CaseIterable, Identifiable {
     case highlighter
     case shape
     case laser
+    case text
     case eraser
     case lasso
 
@@ -26,6 +27,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .highlighter: "Highlighter"
         case .shape: "Shapes"
         case .laser: "Laser Pen"
+        case .text: "Text"
         case .eraser: "Eraser"
         case .lasso: "Lasso"
         }
@@ -39,6 +41,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .highlighter: "highlighter"
         case .shape: "square.on.circle"
         case .laser: "laser.burst"
+        case .text: "textformat"
         case .eraser: "eraser"
         case .lasso: "lasso"
         }
@@ -47,13 +50,13 @@ enum InkTool: String, CaseIterable, Identifiable {
     /// Tools that add ink to the page.
     var isInking: Bool {
         switch self {
-        case .eraser, .lasso, .laser: false
+        case .eraser, .lasso, .laser, .text: false
         default: true
         }
     }
 
     var hasColors: Bool {
-        isInking || self == .laser
+        isInking || self == .laser || self == .text
     }
 
     var inkType: PKInkingTool.InkType {
@@ -75,6 +78,8 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .shape: [1.5, 3, 5.5]
         case .eraser: [8, 20, 40]
         case .lasso, .laser: []
+        // Font sizes for typed text.
+        case .text: [16, 22, 32]
         }
     }
 
@@ -150,6 +155,11 @@ final class ToolState {
         tool == .eraser && eraserIsPartial ? "eraser.line.dashed" : tool.symbol
     }
 
+    /// Font size for the Text tool.
+    var textSize: CGFloat {
+        InkTool.text.widths[min(widthIndices[.text] ?? 1, 2)]
+    }
+
     var widthIndex: Int {
         widthIndices[tool] ?? 1
     }
@@ -202,8 +212,8 @@ final class ToolState {
             return eraserIsPartial ? PKEraserTool(.bitmap, width: width) : PKEraserTool(.vector)
         case .lasso:
             return PKLassoTool()
-        case .laser:
-            // Not used for drawing: the laser draws on its own overlay.
+        case .laser, .text:
+            // Not used for drawing: these tools work on their own overlays.
             return PKLassoTool()
         default:
             return PKInkingTool(tool.inkType, color: color, width: width)

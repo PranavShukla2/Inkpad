@@ -95,6 +95,6 @@ extension Notebook {
 
 extension Page {
     var spec: PageSpec {
-        PageSpec(size: size, paperStyle: paperStyle, pdfPageIndex: pdfPageIndex, drawingData: drawingData)
+        PageSpec(size: size, paperStyle: paperStyle, pdfPageIndex: pdfPageIndex, drawingData: drawingData, textBoxes: textBoxes)
     }
 }

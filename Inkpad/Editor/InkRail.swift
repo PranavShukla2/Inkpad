@@ -127,6 +127,9 @@ struct InkRail: View {
             if tools.tool.isInking {
                 RailDivider()
                 widthOptions(color: tools.color.isVeryDark ? Theme.ink : Color(tools.color))
+            } else if tools.tool == .text {
+                RailDivider()
+                textSizeOptions
             }
         } else if tools.tool == .eraser {
             RailButton(symbol: "scribble", label: "Object Eraser", caption: "Object", isSelected: !tools.eraserIsPartial, style: .toggle) {
@@ -139,6 +142,27 @@ struct InkRail: View {
                 RailDivider()
                 widthOptions(color: Theme.inkSecondary)
             }
+        }
+    }
+
+    private var textSizeOptions: some View {
+        ForEach(0..<3, id: \.self) { index in
+            Button {
+                tools.setWidthIndex(index)
+            } label: {
+                Text("A")
+                    .font(.system(size: CGFloat(11 + index * 5), weight: .semibold, design: .serif))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 32, height: 30)
+                    .background {
+                        if tools.widthIndex == index {
+                            Circle().strokeBorder(Theme.ink.opacity(0.7), lineWidth: 1.5)
+                                .frame(width: 28, height: 28)
+                        }
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(["Small Text", "Medium Text", "Large Text"][index])
         }
     }
 

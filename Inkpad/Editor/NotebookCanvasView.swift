@@ -16,6 +16,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     var onPencilTap: ((UIPencilPreferredAction) -> Void)?
     /// Pulling past the last page asks for a new one.
     var onAddPageRequested: (() -> Void)?
+    /// Every text box, in canvas coordinates, after any change.
+    var onTextBoxesChanged: (([TextBox]) -> Void)?
+
+    let textOverlay = TextBoxOverlay()
 
     /// Space for the editor's top bar; pages scroll underneath it.
     var topInset: CGFloat = 0 {
@@ -80,6 +84,19 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         pagesContainer.layer.anchorPoint = .zero
         pagesContainer.isUserInteractionEnabled = false
         canvasView.insertSubview(pagesContainer, at: 0)
+        // Typed text sits above the ink and scales with it like the pages.
+        textOverlay.layer.anchorPoint = .zero
+        textOverlay.onChange = { [weak self] boxes in
+            self?.onTextBoxesChanged?(boxes)
+        }
+        textOverlay.availableWidth = { [weak self] point in
+            guard let self, !layout.frames.isEmpty else { return 400 }
+            return layout.frames[layout.pageIndex(at: point)].maxX - point.x - 24
+        }
+        textOverlay.onBeginEditing = { [weak self] rect in
+            self?.revealAboveKeyboard(rect)
+        }
+        canvasView.addSubview(textOverlay)
         addSubview(canvasView)
 
         ruler.isHidden = true
@@ -152,6 +169,16 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         slots.values.forEach { $0.removeFromSuperview() }
         slots = [:]
         pagesContainer.bounds = CGRect(origin: .zero, size: layout.contentSize)
+        textOverlay.bounds = pagesContainer.bounds
+        textOverlay.isOnDarkPaper = paperColor.isDark
+        textOverlay.setBoxes(specs.enumerated().flatMap { index, spec in
+            spec.textBoxes.map { box in
+                var box = box
+                box.x += layout.frames[index].minX
+                box.y += layout.frames[index].minY
+                return box
+            }
+        })
 
         canvasView.drawing = layout.merge(specs.map(\.drawing))
         canvasView.undoManager?.removeAllActions()
@@ -182,6 +209,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         layout = newLayout
         backgrounds.append(Self.background(for: spec, paperColor: paperColor, pdf: pdf))
         pagesContainer.bounds = CGRect(origin: .zero, size: layout.contentSize)
+        textOverlay.bounds = pagesContainer.bounds
         updateContentSize()
         updateVisiblePages()
         layoutAddPageButton()
@@ -196,6 +224,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         let offset = canvasView.contentOffset
         layout = PageLayout(sizes: [size], axis: layout.axis)
         pagesContainer.bounds = CGRect(origin: .zero, size: layout.contentSize)
+        textOverlay.bounds = pagesContainer.bounds
         slots.values.forEach { $0.removeFromSuperview() }
         slots = [:]
         fitScale = fittingScale()
@@ -239,10 +268,17 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         isRulerActive: Bool,
         allowsFingerDrawing: Bool,
         snapsShapes: Bool,
-        laserColor: UIColor?
+        laserColor: UIColor?,
+        textStyle: (fontSize: CGFloat, color: UIColor)?
     ) {
         self.snapsShapes = snapsShapes
         applyLaser(color: laserColor, allowsFingerDrawing: allowsFingerDrawing)
+        applyText(style: textStyle)
+        // The laser and Text tool handle touches themselves.
+        let drawingEnabled = laserColor == nil && textStyle == nil
+        if canvasView.drawingGestureRecognizer.isEnabled != drawingEnabled {
+            canvasView.drawingGestureRecognizer.isEnabled = drawingEnabled
+        }
         if key != appliedToolKey {
             appliedToolKey = key
             canvasView.tool = tool()
@@ -272,6 +308,28 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
     }
 
+    private func applyText(style: (fontSize: CGFloat, color: UIColor)?) {
+        if let style {
+            textOverlay.style = style
+            if !textOverlay.isEditable {
+                // PencilKit may have added views since; text must be on top to be tapped.
+                canvasView.bringSubviewToFront(textOverlay)
+            }
+        }
+        textOverlay.isEditable = style != nil
+    }
+
+    /// Scrolls a text box being edited into the top part of the screen, clear of the keyboard.
+    private func revealAboveKeyboard(_ rect: CGRect) {
+        let zoom = canvasView.zoomScale
+        let screenBottom = rect.maxY * zoom - canvasView.contentOffset.y
+        let limit = bounds.height * 0.45
+        guard screenBottom > limit else { return }
+        var offset = canvasView.contentOffset
+        offset.y += screenBottom - limit
+        canvasView.setContentOffset(offset, animated: true)
+    }
+
     /// The laser pen takes over Pencil touches from PencilKit while it's selected.
     private func applyLaser(color: UIColor?, allowsFingerDrawing: Bool) {
         let isActive = color != nil
@@ -283,7 +341,6 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             : [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
         guard laserRecognizer.isEnabled != isActive else { return }
         laserRecognizer.isEnabled = isActive
-        canvasView.drawingGestureRecognizer.isEnabled = !isActive
 
         // A finger laser needs two fingers to scroll, just like drawing with a finger.
         let pan = canvasView.panGestureRecognizer
@@ -397,6 +454,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
         pagesContainer.transform = CGAffineTransform(scaleX: zoom, y: zoom)
         pagesContainer.layer.position = .zero
+        textOverlay.transform = pagesContainer.transform
+        textOverlay.layer.position = .zero
         updateInsets()
     }
 
@@ -616,6 +675,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         updateContentSize()
         updateVisiblePages()
         layoutAddPageButton()
+    }
+
+    func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+        textOverlay.updateResolution(scale * (window?.screen.scale ?? 2))
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {

@@ -581,7 +581,7 @@ struct LibraryView: View {
     private func searchSnippet(for notebook: Notebook) -> String? {
         guard !searchText.isEmpty else { return nil }
         for page in notebook.sortedPages {
-            for text in [page.recognizedText, page.documentText] where !text.isEmpty {
+            for text in [page.typedText, page.recognizedText, page.documentText] where !text.isEmpty {
                 guard let range = text.range(of: searchText, options: [.caseInsensitive, .diacriticInsensitive]) else { continue }
                 let start = text.index(range.lowerBound, offsetBy: -24, limitedBy: text.startIndex) ?? text.startIndex
                 let end = text.index(range.upperBound, offsetBy: 40, limitedBy: text.endIndex) ?? text.endIndex

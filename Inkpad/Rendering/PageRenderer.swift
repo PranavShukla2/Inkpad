@@ -12,6 +12,7 @@ nonisolated struct PageSpec: Sendable {
     var paperStyle: PaperStyle
     var pdfPageIndex: Int?
     var drawingData: Data?
+    var textBoxes: [TextBox] = []
 
     var drawing: PKDrawing {
         drawingData.flatMap { try? PKDrawing(data: $0) } ?? PKDrawing()
@@ -26,6 +27,16 @@ nonisolated enum PageRenderer {
         } else {
             PaperRenderer.draw(spec.paperStyle, color: paperColor, in: context, size: spec.size)
         }
+    }
+
+    /// Draws typed text as real text, so exported PDFs keep it selectable.
+    static func drawTextBoxes(_ boxes: [TextBox], onDarkPaper: Bool, in context: CGContext) {
+        guard !boxes.isEmpty else { return }
+        UIGraphicsPushContext(context)
+        for box in boxes {
+            box.attributedText(onDarkPaper: onDarkPaper).draw(with: box.frame, options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
+        }
+        UIGraphicsPopContext()
     }
 
     static func drawPDFPage(_ page: CGPDFPage, size: CGSize, in context: CGContext) {
@@ -60,6 +71,7 @@ nonisolated enum PageRenderer {
             context.cgContext.scaleBy(x: scale, y: scale)
             drawBackground(of: spec, paperColor: paperColor, pdf: pdf, in: context.cgContext)
             ink.draw(in: pageRect)
+            drawTextBoxes(spec.textBoxes, onDarkPaper: paperColor.isDark, in: context.cgContext)
         }
     }
 }

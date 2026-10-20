@@ -53,6 +53,9 @@ final class NotebookEditorModel {
         canvas.onCurrentPageChanged = { [weak self] index in
             self?.currentPageIndex = index
         }
+        canvas.onTextBoxesChanged = { [weak self] boxes in
+            self?.saveTextBoxes(boxes)
+        }
         if !notebook.isCanvas {
             canvas.onAddPageRequested = { [weak self] in
                 self?.appendPage()
@@ -87,6 +90,26 @@ final class NotebookEditorModel {
         }.value
         guard version == layoutVersion else { return }
         apply(changes)
+    }
+
+    /// Files each text box under the page it sits on, in page coordinates.
+    private func saveTextBoxes(_ boxes: [TextBox]) {
+        guard let layout = canvas?.layout, layout.frames.count == pages.count else { return }
+        var perPage = Array(repeating: [TextBox](), count: pages.count)
+        for var box in boxes {
+            let index = layout.pageIndex(at: CGPoint(x: box.frame.midX, y: box.frame.midY))
+            box.x -= layout.frames[index].minX
+            box.y -= layout.frames[index].minY
+            perPage[index].append(box)
+        }
+        for (index, page) in pages.enumerated() {
+            let data = TextBox.encode(perPage[index].sorted { ($0.y, $0.x) < ($1.y, $1.x) })
+            if page.textBoxesData != data {
+                page.textBoxesData = data
+                page.updatedAt = .now
+                notebook.updatedAt = .now
+            }
+        }
     }
 
     /// Writes any pending ink immediately.
@@ -262,6 +285,7 @@ final class NotebookEditorModel {
                 pdfPageIndex: source.pdfPageIndex
             )
             copy.drawingData = source.drawingData
+            copy.textBoxesData = source.textBoxesData
             copy.recognizedText = source.recognizedText
             copy.documentText = source.documentText
         }

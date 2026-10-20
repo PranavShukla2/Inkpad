@@ -42,9 +42,9 @@ nonisolated enum NotebookPDFRenderer {
     private static let inkScale: CGFloat = 3
 
     /// The inked part of a board, with a margin, at least a page in size.
-    private static func inkArea(of drawing: PKDrawing, on boardSize: CGSize) -> CGRect {
+    private static func inkArea(of drawing: PKDrawing, textBoxes: [TextBox], on boardSize: CGSize) -> CGRect {
         let minimum = PageLayout.standardPageSize
-        var area = drawing.bounds
+        var area = textBoxes.reduce(drawing.bounds) { $0.union($1.frame) }
         if area.isNull || area.isEmpty {
             area = CGRect(x: boardSize.width / 2, y: boardSize.height / 2, width: 0, height: 0)
         }
@@ -62,7 +62,7 @@ nonisolated enum NotebookPDFRenderer {
         return UIGraphicsPDFRenderer(bounds: .zero).pdfData { context in
             for spec in snapshot.pages {
                 let drawing = spec.drawing
-                let area = snapshot.cropsToInk ? inkArea(of: drawing, on: spec.size) : CGRect(origin: .zero, size: spec.size)
+                let area = snapshot.cropsToInk ? inkArea(of: drawing, textBoxes: spec.textBoxes, on: spec.size) : CGRect(origin: .zero, size: spec.size)
                 let pageRect = CGRect(origin: .zero, size: area.size)
                 context.beginPage(withBounds: pageRect, pageInfo: [:])
                 context.cgContext.saveGState()
@@ -73,6 +73,10 @@ nonisolated enum NotebookPDFRenderer {
                 if !drawing.strokes.isEmpty {
                     drawing.image(from: area, scale: inkScale, style: inkStyle).draw(in: pageRect)
                 }
+                context.cgContext.saveGState()
+                context.cgContext.translateBy(x: -area.minX, y: -area.minY)
+                PageRenderer.drawTextBoxes(spec.textBoxes, onDarkPaper: snapshot.paperColor.isDark, in: context.cgContext)
+                context.cgContext.restoreGState()
             }
         }
     }
