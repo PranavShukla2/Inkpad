@@ -23,6 +23,19 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
 
     let textOverlay = TextBoxOverlay()
 
+    // Sticky notes, shapes, photos and graphs (see NotebookCanvasView+Items).
+    var onItemsChanged: (([BoardItem]) -> Void)?
+    var onEditItem: ((BoardItem) -> Void)?
+    /// Board zoom as a percentage, for the zoom indicator.
+    var onZoomChanged: ((Int) -> Void)?
+    let itemsOverlay = BoardItemsOverlay()
+    let selectionChrome = SelectionChromeView()
+    var selectedItemID: UUID?
+    var itemsBeforeEdit: [BoardItem]?
+    let itemPan = UIPanGestureRecognizer()
+    let itemTap = UITapGestureRecognizer()
+    let itemDoubleTap = UITapGestureRecognizer()
+
     /// Space for the editor's top bar; pages scroll underneath it.
     var topInset: CGFloat = 0 {
         didSet {
@@ -55,7 +68,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     /// A page to show once the view has a size.
     private var pendingScrollIndex: Int?
     /// A canvas board: one big page you zoom around, rather than pages to flip.
-    private var isBoard = false
+    private(set) var isBoard = false
     /// Zoom and position to restore after reloading, so a growing board doesn't jump.
     private var pendingViewport: (zoom: CGFloat, offset: CGPoint)?
     private var pendingBoardCentering = false
@@ -74,7 +87,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
     private let pullThreshold: CGFloat = 110
     private var isPullArmed = false
     private var dragStartPageIndex = 0
-    private let haptics = UIImpactFeedbackGenerator(style: .medium)
+    let haptics = UIImpactFeedbackGenerator(style: .medium)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -92,6 +105,9 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         pagesContainer.layer.anchorPoint = .zero
         pagesContainer.isUserInteractionEnabled = false
         canvasView.insertSubview(pagesContainer, at: 0)
+        // Items sit on the paper, under the ink.
+        itemsOverlay.layer.anchorPoint = .zero
+        canvasView.insertSubview(itemsOverlay, aboveSubview: pagesContainer)
         // Typed text sits above the ink and scales with it like the pages.
         textOverlay.layer.anchorPoint = .zero
         textOverlay.onChange = { [weak self] boxes in
@@ -106,6 +122,9 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         }
         canvasView.addSubview(textOverlay)
         addSubview(canvasView)
+        selectionChrome.isHidden = true
+        addSubview(selectionChrome)
+        setUpItemInteraction()
 
         ruler.isHidden = true
         rulerControls.isHidden = true
@@ -184,6 +203,16 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         slots = [:]
         pagesContainer.bounds = CGRect(origin: .zero, size: layout.contentSize)
         textOverlay.bounds = pagesContainer.bounds
+        itemsOverlay.bounds = pagesContainer.bounds
+        selectItem(nil)
+        itemsOverlay.setItems(specs.enumerated().flatMap { index, spec in
+            spec.items.map { item in
+                var item = item
+                item.x += layout.frames[index].minX
+                item.y += layout.frames[index].minY
+                return item
+            }
+        })
         textOverlay.isOnDarkPaper = paperColor.isDark
         textOverlay.setBoxes(specs.enumerated().flatMap { index, spec in
             spec.textBoxes.map { box in
@@ -224,6 +253,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         backgrounds.append(Self.background(for: spec, paperColor: paperColor, pdf: pdf))
         pagesContainer.bounds = CGRect(origin: .zero, size: layout.contentSize)
         textOverlay.bounds = pagesContainer.bounds
+        itemsOverlay.bounds = pagesContainer.bounds
         updateContentSize()
         updateVisiblePages()
         layoutAddPageButton()
@@ -239,6 +269,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         layout = PageLayout(sizes: [size], axis: layout.axis)
         pagesContainer.bounds = CGRect(origin: .zero, size: layout.contentSize)
         textOverlay.bounds = pagesContainer.bounds
+        itemsOverlay.bounds = pagesContainer.bounds
         slots.values.forEach { $0.removeFromSuperview() }
         slots = [:]
         fitScale = fittingScale()
@@ -302,6 +333,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         laserOverlay.mode = laserMode
         applyLaser(color: laserColor, allowsFingerDrawing: allowsFingerDrawing)
         applyText(style: textStyle)
+        // Fingers move items unless they're drawing, typing or pointing.
+        setItemsInteractive(laserColor == nil && textStyle == nil && !allowsFingerDrawing)
         // The laser and Text tool handle touches themselves.
         let drawingEnabled = laserColor == nil && textStyle == nil
         if canvasView.drawingGestureRecognizer.isEnabled != drawingEnabled {
@@ -400,6 +433,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             canvasView.frame = bounds
             laserOverlay.frame = bounds
             ruler.frame = bounds
+            selectionChrome.frame = bounds
         }
         let controlsSize = rulerControls.sizeThatFits(bounds.size)
         rulerControls.frame = CGRect(
@@ -495,6 +529,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         pagesContainer.layer.position = .zero
         textOverlay.transform = pagesContainer.transform
         textOverlay.layer.position = .zero
+        itemsOverlay.transform = pagesContainer.transform
+        itemsOverlay.layer.position = .zero
         updateInsets()
     }
 
@@ -798,16 +834,20 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         updateVisiblePages()
         updatePullIndicator()
         layoutAddPageButton()
+        layoutSelection()
     }
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         updateContentSize()
         updateVisiblePages()
         layoutAddPageButton()
+        layoutSelection()
+        onZoomChanged?(Int((canvasView.zoomScale * 100).rounded()))
     }
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
         textOverlay.updateResolution(scale * (window?.screen.scale ?? 2))
+        itemsOverlay.updateResolution(scale * (window?.screen.scale ?? 2))
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {

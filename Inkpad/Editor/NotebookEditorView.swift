@@ -77,7 +77,10 @@ struct NotebookEditorView: View {
                 VStack(spacing: 0) {
                     topBar
                     Spacer(minLength: 0)
-                    if !model.notebook.isCanvas {
+                    if model.notebook.isCanvas {
+                        CanvasInsertBar(model: model, tools: tools)
+                            .padding(.bottom, 16)
+                    } else {
                         pageIndicator
                     }
                 }
@@ -117,6 +120,10 @@ struct NotebookEditorView: View {
                 try? await Task.sleep(for: .seconds(undoDelay))
                 model.undo()
             }
+            if UserDefaults.standard.bool(forKey: "editFirstGraph") {
+                try? await Task.sleep(for: .seconds(1))
+                model.editingItem = model.pages.flatMap(\.items).first { $0.kind == .graph }
+            }
             if UserDefaults.standard.bool(forKey: "convertText") {
                 isConvertingToText = true
             }
@@ -125,6 +132,11 @@ struct NotebookEditorView: View {
             }
         }
         #endif
+        .sheet(item: $model.editingItem) { item in
+            ItemEditorSheet(item: item) { edited in
+                model.updateItem(edited)
+            }
+        }
         .sheet(isPresented: $isShowingPages) {
             PageNavigatorView(model: model)
         }
@@ -221,6 +233,7 @@ struct NotebookEditorView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Export PDF")
                 if !model.notebook.isCanvas {
+                    NotebookInsertMenu(model: model)
                     BarButton(symbol: "square.grid.2x2", label: "Pages") {
                         showPages()
                     }

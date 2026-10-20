@@ -17,6 +17,9 @@ final class NotebookEditorModel {
     private(set) var canUndo = false
     private(set) var canRedo = false
     private(set) var scrollAxis: ScrollAxis
+    /// The sticky note or graph being edited in a sheet.
+    var editingItem: BoardItem?
+    private(set) var zoomPercent = 100
 
     @ObservationIgnored private weak var canvas: NotebookCanvasView?
     /// The notebook's PDF, if any. Safe to read from background threads.
@@ -29,6 +32,7 @@ final class NotebookEditorModel {
     @ObservationIgnored private var layoutVersion = 0
     @ObservationIgnored private var pagesNeedingRecognition: [Page] = []
     @ObservationIgnored private var recognitionTask: Task<Void, Never>?
+    @ObservationIgnored private var imageCache: [UUID: UIImage] = [:]
 
     init(notebook: Notebook, scrollAxis: ScrollAxis) {
         self.notebook = notebook
@@ -56,6 +60,18 @@ final class NotebookEditorModel {
         }
         canvas.onTextBoxesChanged = { [weak self] boxes in
             self?.saveTextBoxes(boxes)
+        }
+        canvas.onItemsChanged = { [weak self] items in
+            self?.saveItems(items)
+        }
+        canvas.onEditItem = { [weak self] item in
+            self?.editingItem = item
+        }
+        canvas.onZoomChanged = { [weak self] percent in
+            self?.zoomPercent = percent
+        }
+        canvas.itemsOverlay.imageProvider = { [weak self] id in
+            self?.image(for: id)
         }
         if !notebook.isCanvas {
             canvas.onAddPageRequested = { [weak self] in
@@ -91,6 +107,86 @@ final class NotebookEditorModel {
         }.value
         guard version == layoutVersion else { return }
         apply(changes)
+    }
+
+    // MARK: - Items
+
+    /// Files each item under the page its centre is on, in page coordinates.
+    private func saveItems(_ items: [BoardItem]) {
+        guard let layout = canvas?.layout, layout.frames.count == pages.count else { return }
+        var perPage = Array(repeating: [BoardItem](), count: pages.count)
+        for var item in items {
+            let index = layout.pageIndex(at: CGPoint(x: item.frame.midX, y: item.frame.midY))
+            item.x -= layout.frames[index].minX
+            item.y -= layout.frames[index].minY
+            perPage[index].append(item)
+        }
+        for (index, page) in pages.enumerated() {
+            let data = BoardItem.encode(perPage[index])
+            if page.itemsData != data {
+                page.itemsData = data
+                page.updatedAt = .now
+                notebook.updatedAt = .now
+            }
+        }
+        persist()
+    }
+
+    func insertSticky() {
+        canvas?.insertItem(BoardItem(kind: .sticky, x: 0, y: 0, width: 220, height: 220, colorHex: BoardItem.stickyColors[0]))
+    }
+
+    func insertShape(_ shape: BoardItem.Shape) {
+        let size = shape == .arrow ? CGSize(width: 240, height: 110) : CGSize(width: 200, height: 200)
+        var item = BoardItem(kind: .shape, x: 0, y: 0, width: size.width, height: size.height, colorHex: BoardItem.shapeColors[1])
+        item.shape = shape
+        canvas?.insertItem(item)
+    }
+
+    func insertGraph() {
+        var item = BoardItem(kind: .graph, x: 0, y: 0, width: 440, height: 320, colorHex: "FFFFFF")
+        item.text = "y = sin(x)"
+        editingItem = canvas?.insertItem(item)
+    }
+
+    /// Stores a photo once in the notebook and places it on the page.
+    func insertPhoto(_ data: Data) {
+        guard let image = UIImage(data: data) else { return }
+        let maxSide: CGFloat = 1600
+        let scale = min(1, maxSide / max(image.size.width, image.size.height))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let resized = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        guard let jpeg = resized.jpegData(compressionQuality: 0.85) else { return }
+        let attachment = Attachment(data: jpeg)
+        notebook.modelContext?.insert(attachment)
+        notebook.attachments.append(attachment)
+        imageCache[attachment.id] = resized
+
+        let width = min(360, size.width)
+        var item = BoardItem(kind: .image, x: 0, y: 0, width: width, height: width * size.height / max(size.width, 1), colorHex: "FFFFFF")
+        item.imageID = attachment.id
+        canvas?.insertItem(item)
+    }
+
+    func updateItem(_ item: BoardItem) {
+        canvas?.replaceItem(item)
+    }
+
+    func zoomToFit() {
+        canvas?.zoomToFitContent()
+    }
+
+    private func image(for id: UUID) -> UIImage? {
+        if let cached = imageCache[id] {
+            return cached
+        }
+        let image = notebook.attachments.first { $0.id == id }.flatMap { UIImage(data: $0.data) }
+        imageCache[id] = image
+        return image
     }
 
     /// Files each text box under the page it sits on, in page coordinates.
@@ -299,6 +395,7 @@ final class NotebookEditorModel {
             )
             copy.drawingData = source.drawingData
             copy.textBoxesData = source.textBoxesData
+            copy.itemsData = source.itemsData
             copy.recognizedText = source.recognizedText
             copy.documentText = source.documentText
         }
