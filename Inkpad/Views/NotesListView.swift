@@ -12,10 +12,16 @@ struct NotesListView: View {
     @Binding var selection: Note?
     @State private var noteBeingRenamed: Note?
     @State private var renameText = ""
+    @State private var searchText = ""
+
+    private var filteredNotes: [Note] {
+        guard !searchText.isEmpty else { return notes }
+        return notes.filter { $0.displayTitle.localizedStandardContains(searchText) }
+    }
 
     var body: some View {
         List(selection: $selection) {
-            ForEach(notes) { note in
+            ForEach(filteredNotes) { note in
                 NavigationLink(value: note) {
                     NoteRow(note: note)
                 }
@@ -36,6 +42,20 @@ struct NotesListView: View {
             }
             .onDelete(perform: deleteNotes)
         }
+        .overlay {
+            if notes.isEmpty {
+                ContentUnavailableView {
+                    Label("No Notes", systemImage: "note.text")
+                } description: {
+                    Text("Create a note to start writing.")
+                } actions: {
+                    Button("New Note", action: addNote)
+                }
+            } else if filteredNotes.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            }
+        }
+        .searchable(text: $searchText, prompt: "Search notes")
         .navigationTitle("Notes")
         .toolbar {
             ToolbarItem {
@@ -77,7 +97,7 @@ struct NotesListView: View {
     private func deleteNotes(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                delete(notes[index])
+                delete(filteredNotes[index])
             }
         }
     }
