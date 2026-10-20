@@ -11,10 +11,10 @@ import PencilKit
 nonisolated struct PageLayout: Sendable {
     /// A4 proportions, sized so a page fills an iPad screen at about 100%.
     static let standardPageSize = CGSize(width: 768, height: 1086)
-    static let gap: CGFloat = 32
-    static let sideMargin: CGFloat = 28
-    static let topMargin: CGFloat = 24
-    static let bottomMargin: CGFloat = 160
+    static let gap: CGFloat = 24
+    static let sideMargin: CGFloat = 10
+    static let topMargin: CGFloat = 12
+    static let bottomMargin: CGFloat = 40
 
     let frames: [CGRect]
     let contentSize: CGSize

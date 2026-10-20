@@ -113,3 +113,40 @@ nonisolated enum CoverStyle: String, CaseIterable, Identifiable, Codable, Sendab
     /// Light covers need dark text on the label.
     var isLight: Bool { self == .sand }
 }
+
+nonisolated enum PageSizeOption: String, CaseIterable, Identifiable, Sendable {
+    case fitScreen
+    case a4
+    case letter
+    case square
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .fitScreen: "Fit Screen"
+        case .a4: "A4"
+        case .letter: "US Letter"
+        case .square: "Square"
+        }
+    }
+
+    /// Page size in points. "Fit Screen" matches the device's portrait shape,
+    /// so one page fills the display.
+    func size(forScreen screen: CGSize) -> CGSize {
+        let width = PageLayout.standardPageSize.width
+        switch self {
+        case .fitScreen:
+            let short = min(screen.width, screen.height)
+            let long = max(screen.width, screen.height)
+            guard short > 0 else { return PageLayout.standardPageSize }
+            return CGSize(width: width, height: (width * long / short).rounded())
+        case .a4:
+            return PageLayout.standardPageSize
+        case .letter:
+            return CGSize(width: width, height: (width * 11 / 8.5).rounded())
+        case .square:
+            return CGSize(width: width, height: width)
+        }
+    }
+}

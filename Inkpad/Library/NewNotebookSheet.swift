@@ -11,9 +11,10 @@ struct NewNotebookSheet: View {
     @State private var cover = CoverStyle.allCases.randomElement() ?? .ink
     @State private var paperStyle = PaperStyle.lined
     @State private var paperColor = PaperColor.white
+    @State private var pageSize = PageSizeOption.fitScreen
     @FocusState private var isTitleFocused: Bool
 
-    let onCreate: (String, CoverStyle, PaperStyle, PaperColor) -> Void
+    let onCreate: (String, CoverStyle, PaperStyle, PaperColor, CGSize) -> Void
 
     var body: some View {
         NavigationStack {
@@ -72,13 +73,20 @@ struct NewNotebookSheet: View {
                             .frame(maxWidth: 260)
                         }
 
+                        Picker("Page Size", selection: $pageSize) {
+                            ForEach(PageSizeOption.allCases) { option in
+                                Text(option.name).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96, maximum: 120), spacing: 18)], spacing: 18) {
                             ForEach(PaperStyle.allCases) { style in
                                 Button {
                                     paperStyle = style
                                 } label: {
                                     VStack(spacing: 8) {
-                                        PaperSwatch(style: style, color: paperColor)
+                                        PaperSwatch(style: style, color: paperColor, pageSize: pageSize.size(forScreen: screenSize))
                                             .overlay {
                                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                                                     .strokeBorder(paperStyle == style ? Theme.stamp : .clear, lineWidth: 2.5)
@@ -108,7 +116,7 @@ struct NewNotebookSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        onCreate(displayTitle, cover, paperStyle, paperColor)
+                        onCreate(displayTitle, cover, paperStyle, paperColor, pageSize.size(forScreen: screenSize))
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -117,6 +125,12 @@ struct NewNotebookSheet: View {
         }
         .sensoryFeedback(.selection, trigger: paperStyle)
         .sensoryFeedback(.selection, trigger: cover)
+    }
+
+    private var screenSize: CGSize {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.screen.bounds.size }
+            .first ?? PageLayout.standardPageSize
     }
 
     private var displayTitle: String {

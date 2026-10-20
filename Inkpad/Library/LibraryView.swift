@@ -62,13 +62,14 @@ struct LibraryView: View {
         }
         .tint(Theme.stamp)
         .sheet(isPresented: $isCreatingNotebook, onDismiss: openCreatedNotebook) {
-            NewNotebookSheet { title, cover, paperStyle, paperColor in
+            NewNotebookSheet { title, cover, paperStyle, paperColor, pageSize in
                 let notebook = Notebook.create(
                     in: modelContext,
                     title: title,
                     cover: cover,
                     paperStyle: paperStyle,
-                    paperColor: paperColor
+                    paperColor: paperColor,
+                    pageSize: pageSize
                 )
                 notebook.folder = selectedFolder
                 notebookToOpenAfterSheet = notebook

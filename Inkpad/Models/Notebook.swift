@@ -16,6 +16,9 @@ final class Notebook {
     var paperColorRaw: String
     var isFavorite: Bool = false
     var currentPageIndex: Int = 0
+    /// Size for new pages; zero means the standard A4 size.
+    var pageWidth: Double = 0
+    var pageHeight: Double = 0
     /// The imported document for PDF notebooks; pages reference it by index.
     @Attribute(.externalStorage) var pdfData: Data?
     /// First-page preview shown instead of a fabric cover for PDF notebooks.

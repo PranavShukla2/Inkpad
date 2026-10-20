@@ -123,17 +123,18 @@ struct NotebookCoverView: View {
 struct PaperSwatch: View {
     let style: PaperStyle
     let color: PaperColor
+    var pageSize = PageLayout.standardPageSize
 
     var body: some View {
         Canvas { context, size in
             context.withCGContext { cgContext in
-                let page = PageLayout.standardPageSize
-                let scale = size.width / page.width
+                let scale = size.width / pageSize.width
                 cgContext.scaleBy(x: scale, y: scale)
-                PaperRenderer.draw(style, color: color, in: cgContext, size: page)
+                PaperRenderer.draw(style, color: color, in: cgContext, size: pageSize)
             }
         }
-        .aspectRatio(PageLayout.standardPageSize.width / PageLayout.standardPageSize.height, contentMode: .fit)
+        .aspectRatio(pageSize.width / pageSize.height, contentMode: .fit)
+        .animation(.snappy, value: pageSize)
         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 3, y: 2)
     }

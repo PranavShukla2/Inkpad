@@ -13,19 +13,24 @@ extension Notebook {
         title: String = Notebook.defaultTitle,
         cover: CoverStyle = .ink,
         paperStyle: PaperStyle = .lined,
-        paperColor: PaperColor = .white
+        paperColor: PaperColor = .white,
+        pageSize: CGSize = Page.standardSize
     ) -> Notebook {
         let notebook = Notebook(title: title, cover: cover, paperStyle: paperStyle, paperColor: paperColor)
+        notebook.pageWidth = pageSize.width
+        notebook.pageHeight = pageSize.height
         context.insert(notebook)
         notebook.insertPage(at: 0)
         return notebook
     }
 
-    /// New pages match the width of a PDF's pages, or use the standard size.
+    /// New pages use the notebook's page size, or match the width of a PDF's pages.
     var newPageSize: CGSize {
-        guard isPDF, let last = sortedPages.last else { return Page.standardSize }
-        let standard = Page.standardSize
-        return CGSize(width: last.width, height: last.width * standard.height / standard.width)
+        if isPDF, let last = sortedPages.last {
+            let standard = Page.standardSize
+            return CGSize(width: last.width, height: last.width * standard.height / standard.width)
+        }
+        return pageWidth > 0 && pageHeight > 0 ? CGSize(width: pageWidth, height: pageHeight) : Page.standardSize
     }
 
     @discardableResult
