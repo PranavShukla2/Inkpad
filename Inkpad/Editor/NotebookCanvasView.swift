@@ -8,12 +8,13 @@ import PencilKit
 
 /// The whole notebook as one PencilKit canvas: pages are stacked vertically and
 /// drawn underneath the ink, so zoom and scrolling stay native and sharp.
-final class NotebookCanvasView: UIView, PKCanvasViewDelegate {
+final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractionDelegate {
     let canvasView = PKCanvasView()
 
     var onDrawingChanged: (() -> Void)?
     var onStrokeEnded: (() -> Void)?
     var onCurrentPageChanged: ((Int) -> Void)?
+    var onPencilTap: ((UIPencilPreferredAction) -> Void)?
 
     /// Space for the editor's top bar; pages scroll underneath it.
     var topInset: CGFloat = 0 {
@@ -31,6 +32,8 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate {
     private var slots: [Int: PageSlotView] = [:]
     private var fitScale: CGFloat = 0
     private var isLoading = false
+    /// A page to show once the view has a size.
+    private var pendingScrollIndex: Int?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -49,6 +52,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate {
         pagesContainer.isUserInteractionEnabled = false
         canvasView.insertSubview(pagesContainer, at: 0)
         addSubview(canvasView)
+
+        let pencilInteraction = UIPencilInteraction()
+        pencilInteraction.delegate = self
+        addInteraction(pencilInteraction)
     }
 
     required init?(coder: NSCoder) {
@@ -79,12 +86,9 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate {
         canvasView.undoManager?.removeAllActions()
 
         fitScale = 0
+        pendingScrollIndex = pageIndex
         setNeedsLayout()
         layoutIfNeeded()
-        if let pageIndex {
-            scrollToPage(pageIndex, animated: false)
-        }
-        updateVisiblePages()
     }
 
     /// The current ink, one drawing per page in page coordinates.
@@ -126,6 +130,10 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate {
             canvasView.zoomScale = newFitScale * max(1, relativeZoom)
         }
         updateContentSize()
+        if let pendingScrollIndex {
+            self.pendingScrollIndex = nil
+            scrollToPage(pendingScrollIndex, animated: false)
+        }
         updateVisiblePages()
     }
 
@@ -185,5 +193,11 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate {
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         updateContentSize()
         updateVisiblePages()
+    }
+
+    // MARK: - UIPencilInteractionDelegate
+
+    func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+        onPencilTap?(UIPencilInteraction.preferredTapAction)
     }
 }
