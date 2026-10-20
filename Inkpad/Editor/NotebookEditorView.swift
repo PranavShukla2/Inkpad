@@ -103,38 +103,28 @@ struct NotebookEditorView: View {
 
     // MARK: - Top bar
 
+    /// Floating pill groups instead of a full-width bar, so more page shows.
     private var topBar: some View {
-        HStack(spacing: 2) {
-            BarButton(symbol: "chevron.left", label: "Library") {
-                dismiss()
+        HStack(spacing: 10) {
+            BarPill {
+                BarButton(symbol: "chevron.left", label: "Library") {
+                    dismiss()
+                }
+                Button {
+                    renameText = model.notebook.title
+                    isRenaming = true
+                } label: {
+                    Text(model.notebook.displayTitle)
+                        .font(.serif(.headline))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                        .padding(.trailing, 14)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Rename")
             }
-
-            Button {
-                renameText = model.notebook.title
-                isRenaming = true
-            } label: {
-                Text(model.notebook.displayTitle)
-                    .font(.serif(.headline))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                    .padding(.horizontal, 6)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Rename")
 
             Spacer(minLength: 12)
-
-            BarButton(symbol: "arrow.uturn.backward", label: "Undo", isEnabled: model.canUndo) {
-                model.undo()
-            }
-            BarButton(symbol: "arrow.uturn.forward", label: "Redo", isEnabled: model.canRedo) {
-                model.redo()
-            }
-
-            Rectangle()
-                .fill(Theme.hairline)
-                .frame(width: 1, height: 22)
-                .padding(.horizontal, 6)
 
             if recorder.isRecording {
                 Button {
@@ -146,50 +136,62 @@ struct NotebookEditorView: View {
                             .font(.subheadline.monospacedDigit().weight(.semibold))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
                     .background(Theme.stamp, in: Capsule())
+                    .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Stop recording")
                 .transition(.scale.combined(with: .opacity))
             }
-            BarButton(symbol: recorder.isRecording ? "waveform" : "mic", label: "Recordings") {
-                isShowingRecordings = true
-            }
-            .popover(isPresented: $isShowingRecordings) {
-                RecordingsPanel(notebook: model.notebook, recorder: recorder)
-            }
-            ShareLink(
-                item: NotebookExport(title: model.notebook.displayTitle) { [model] in
-                    model.saveNow()
-                    return model.notebook.snapshot
-                },
-                preview: SharePreview(model.notebook.displayTitle)
-            ) {
-                BarIcon(symbol: "square.and.arrow.up")
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Export PDF")
-            if !model.notebook.isCanvas {
-                BarButton(symbol: "square.grid.2x2", label: "Pages") {
-                    showPages()
+
+            BarPill {
+                BarButton(symbol: "arrow.uturn.backward", label: "Undo", isEnabled: model.canUndo) {
+                    model.undo()
                 }
-                BarButton(symbol: "doc.badge.plus", label: "Add Page") {
-                    model.addPage()
+                BarButton(symbol: "arrow.uturn.forward", label: "Redo", isEnabled: model.canRedo) {
+                    model.redo()
                 }
             }
-            moreMenu
+
+            BarPill {
+                BarButton(symbol: recorder.isRecording ? "waveform" : "mic", label: "Recordings") {
+                    isShowingRecordings = true
+                }
+                .popover(isPresented: $isShowingRecordings) {
+                    RecordingsPanel(notebook: model.notebook, recorder: recorder)
+                }
+                ShareLink(
+                    item: NotebookExport(title: model.notebook.displayTitle) { [model] in
+                        model.saveNow()
+                        return model.notebook.snapshot
+                    },
+                    preview: SharePreview(model.notebook.displayTitle)
+                ) {
+                    BarIcon(symbol: "square.and.arrow.up")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Export PDF")
+                if !model.notebook.isCanvas {
+                    BarButton(symbol: "square.grid.2x2", label: "Pages") {
+                        showPages()
+                    }
+                    BarButton(symbol: "doc.badge.plus", label: "Add Page") {
+                        model.addPage()
+                    }
+                }
+                moreMenu
+            }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 12)
         .frame(height: topBarHeight)
-        .background {
-            ZStack(alignment: .bottom) {
-                Rectangle().fill(.ultraThinMaterial)
-                Rectangle().fill(Theme.deskRaised.opacity(0.75))
-                Rectangle().fill(Theme.hairline).frame(height: 0.5)
-            }
-            .ignoresSafeArea(edges: .top)
+        .background(alignment: .top) {
+            // Keeps the status bar readable over the page without a solid bar.
+            LinearGradient(colors: [Theme.desk, Theme.desk.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(height: 36)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
         }
     }
 
@@ -275,6 +277,25 @@ struct NotebookEditorView: View {
         // Thumbnails read saved ink, so write the latest strokes first.
         model.saveNow()
         isShowingPages = true
+    }
+}
+
+private struct BarPill<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 0) {
+            content
+        }
+        .padding(.horizontal, 2)
+        .frame(height: 44)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(Capsule().fill(Theme.deskRaised.opacity(0.78)))
+                .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.1), radius: 10, y: 3)
+        }
     }
 }
 

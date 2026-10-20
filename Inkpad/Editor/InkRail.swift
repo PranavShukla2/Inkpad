@@ -9,6 +9,7 @@ import SwiftUI
 /// below, then the ruler and finger-drawing toggles.
 struct InkRail: View {
     @Bindable var tools: ToolState
+    @Namespace private var selection
 
     var body: some View {
         Group {
@@ -73,14 +74,15 @@ struct InkRail: View {
                 Image(systemName: "chevron.compact.up")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.inkSecondary)
-                    .frame(width: 40, height: 18)
+                    .frame(width: 40, height: 22)
+                    .padding(.top, 4)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Hide tools")
 
             ForEach(InkTool.allCases) { tool in
-                RailButton(symbol: tool.symbol, label: tool.name, isSelected: tools.tool == tool) {
+                RailButton(symbol: tool.symbol, label: tool.name, isSelected: tools.tool == tool, selection: selection) {
                     tools.select(tool)
                 }
             }
@@ -179,6 +181,8 @@ private struct RailButton: View {
     let label: String
     let isSelected: Bool
     var style: Style = .tool
+    /// Lets the selected tool's stamp disc slide between tools.
+    var selection: Namespace.ID? = nil
     let action: () -> Void
 
     var body: some View {
@@ -189,7 +193,13 @@ private struct RailButton: View {
                 .frame(width: 40, height: 40)
                 .background {
                     if isSelected {
-                        Circle().fill(style == .tool ? Theme.stamp : Theme.ink.opacity(0.1))
+                        if style == .tool, let selection {
+                            Circle()
+                                .fill(Theme.stamp)
+                                .matchedGeometryEffect(id: "selectedTool", in: selection)
+                        } else {
+                            Circle().fill(style == .tool ? Theme.stamp : Theme.ink.opacity(0.1))
+                        }
                     }
                 }
                 .contentShape(Circle())
