@@ -137,6 +137,7 @@ struct NotesListView: View {
                 modelContext.insert(note)
                 selection = note
             }
+            note.updateThumbnail()
         } catch {
             importErrorMessage = error.localizedDescription
         }
