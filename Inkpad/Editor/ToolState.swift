@@ -80,7 +80,7 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .highlighter: [12, 20, 30]
         case .shape: [1.5, 3, 5.5]
         case .textPen: [2, 3, 4.5]
-        case .eraser: [8, 20, 40]
+        case .eraser: [8, 20, 40, 72]
         case .lasso, .laser: []
         // Font sizes for typed text.
         case .text: [16, 22, 32]
@@ -92,6 +92,33 @@ enum InkTool: String, CaseIterable, Identifiable {
         case .highlighter: InkPalette.highlighters
         case .laser: InkPalette.lasers
         default: InkPalette.inks
+        }
+    }
+}
+
+enum LaserMode: String, CaseIterable, Identifiable {
+    /// Everything stays until you pause, then the whole sentence fades.
+    case trail
+    /// Each stroke fades on its own shortly after you lift the Pencil.
+    case fade
+    /// A glowing dot that follows the Pencil, for pointing at things.
+    case dot
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .trail: "Trail"
+        case .fade: "Fade"
+        case .dot: "Dot"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .trail: "scribble.variable"
+        case .fade: "wand.and.rays"
+        case .dot: "smallcircle.filled.circle"
         }
     }
 }
@@ -129,6 +156,7 @@ final class ToolState {
     private var colors: [InkTool: UIColor] = [:]
     private var widthIndices: [InkTool: Int] = [:]
     var eraserIsPartial = false { didSet { persist() } }
+    var laserMode = LaserMode.trail { didSet { persist() } }
     var isRulerActive = false
     var allowsFingerDrawing = false { didSet { persist() } }
     /// Left-handed layout: the Ink Rail sits on the right.
@@ -218,7 +246,10 @@ final class ToolState {
         let width = widths.isEmpty ? 0 : widths[min(widthIndex, widths.count - 1)]
         switch tool {
         case .eraser:
-            return eraserIsPartial ? PKEraserTool(.bitmap, width: width) : PKEraserTool(.vector)
+            guard eraserIsPartial else { return PKEraserTool(.vector) }
+            let range = PKEraserTool.EraserType.bitmap.validWidthRange
+            let clamped = range.upperBound > 0 ? min(max(width, range.lowerBound), range.upperBound) : width
+            return PKEraserTool(.bitmap, width: clamped)
         case .lasso:
             return PKLassoTool()
         case .laser, .text:
@@ -237,6 +268,7 @@ final class ToolState {
         defaults.set(Dictionary(uniqueKeysWithValues: colors.map { ($0.key.rawValue, $0.value.hexString) }), forKey: "toolColors")
         defaults.set(Dictionary(uniqueKeysWithValues: widthIndices.map { ($0.key.rawValue, $0.value) }), forKey: "toolWidths")
         defaults.set(eraserIsPartial, forKey: "eraserIsPartial")
+        defaults.set(laserMode.rawValue, forKey: "laserMode")
         defaults.set(allowsFingerDrawing, forKey: "allowsFingerDrawing")
         defaults.set(railOnRight, forKey: "railOnRight")
         defaults.set(isRailCollapsed, forKey: "isRailCollapsed")
@@ -259,6 +291,7 @@ final class ToolState {
             }
         }
         eraserIsPartial = defaults.bool(forKey: "eraserIsPartial")
+        laserMode = defaults.string(forKey: "laserMode").flatMap(LaserMode.init(rawValue:)) ?? .trail
         allowsFingerDrawing = defaults.bool(forKey: "allowsFingerDrawing")
         railOnRight = defaults.bool(forKey: "railOnRight")
         isRailCollapsed = defaults.bool(forKey: "isRailCollapsed")

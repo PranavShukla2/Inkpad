@@ -283,6 +283,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
         allowsFingerDrawing: Bool,
         snapsShapes: Bool,
         laserColor: UIColor?,
+        laserMode: LaserMode,
         textStyle: (fontSize: CGFloat, color: UIColor)?,
         isTextPen: Bool,
         eraserWidth: CGFloat?
@@ -298,6 +299,7 @@ final class NotebookCanvasView: UIView, PKCanvasViewDelegate, UIPencilInteractio
             convertTextPenStrokes()
         }
         isTextPenActive = isTextPen
+        laserOverlay.mode = laserMode
         applyLaser(color: laserColor, allowsFingerDrawing: allowsFingerDrawing)
         applyText(style: textStyle)
         // The laser and Text tool handle touches themselves.

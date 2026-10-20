@@ -127,6 +127,13 @@ struct InkRail: View {
             if tools.tool.isInking {
                 RailDivider()
                 widthOptions(color: tools.color.isVeryDark ? Theme.ink : Color(tools.color))
+            } else if tools.tool == .laser {
+                RailDivider()
+                ForEach(LaserMode.allCases) { mode in
+                    RailButton(symbol: mode.symbol, label: "\(mode.name) Laser", caption: mode.name, isSelected: tools.laserMode == mode, style: .toggle) {
+                        tools.laserMode = mode
+                    }
+                }
             } else if tools.tool == .text {
                 RailDivider()
                 textSizeOptions
@@ -167,7 +174,7 @@ struct InkRail: View {
     }
 
     private func widthOptions(color: Color) -> some View {
-        ForEach(0..<3, id: \.self) { index in
+        ForEach(tools.tool.widths.indices, id: \.self) { index in
             Button {
                 tools.setWidthIndex(index)
             } label: {
@@ -183,7 +190,7 @@ struct InkRail: View {
                     }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(["Thin", "Medium", "Thick"][index])
+            .accessibilityLabel(["Thin", "Medium", "Thick", "Extra Thick"][min(index, 3)])
         }
     }
 }

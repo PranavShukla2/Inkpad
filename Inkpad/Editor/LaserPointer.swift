@@ -81,6 +81,7 @@ final class EraserTracker: UIGestureRecognizer {
 /// Nothing here is ever added to the notebook.
 final class LaserOverlayView: UIView {
     var color: UIColor = UIColor(hex: 0xFF3B30)
+    var mode = LaserMode.trail
     /// How long a pause has to be before the trails fade.
     static let pauseBeforeFading: TimeInterval = 1.5
 
@@ -90,6 +91,7 @@ final class LaserOverlayView: UIView {
     /// Finished trails still on screen, waiting for a pause.
     private var trails: [CAShapeLayer] = []
     private var fadeWork: DispatchWorkItem?
+    private var dotLayer: CAShapeLayer?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -101,8 +103,14 @@ final class LaserOverlayView: UIView {
     }
 
     func begin(at point: CGPoint) {
+        if mode == .dot {
+            showDot(at: point)
+            return
+        }
         // Still writing: keep everything so far on screen.
-        fadeWork?.cancel()
+        if mode == .trail {
+            fadeWork?.cancel()
+        }
         points = [point]
         let glow = CAShapeLayer()
         glow.fillColor = nil
@@ -130,14 +138,29 @@ final class LaserOverlayView: UIView {
     }
 
     func add(_ newPoints: [CGPoint]) {
+        if mode == .dot, let last = newPoints.last {
+            moveDot(to: last)
+            return
+        }
         points.append(contentsOf: newPoints)
         updatePath()
     }
 
     func end() {
+        if mode == .dot {
+            hideDot()
+            return
+        }
         guard let glow = glowLayer, let core = coreLayer else { return }
         glowLayer = nil
         coreLayer = nil
+        if mode == .fade {
+            // Each stroke goes on its own, whatever else is being drawn.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                self?.fade([glow, core])
+            }
+            return
+        }
         trails.append(contentsOf: [glow, core])
 
         let work = DispatchWorkItem { [weak self] in
@@ -150,6 +173,10 @@ final class LaserOverlayView: UIView {
     private func fadeAllTrails() {
         let fading = trails
         trails = []
+        fade(fading)
+    }
+
+    private func fade(_ fading: [CAShapeLayer]) {
         CATransaction.begin()
         CATransaction.setCompletionBlock {
             fading.forEach { $0.removeFromSuperlayer() }
@@ -164,6 +191,37 @@ final class LaserOverlayView: UIView {
             trail.add(fade, forKey: "fade")
         }
         CATransaction.commit()
+    }
+
+    // MARK: - Pointer dot
+
+    private func showDot(at point: CGPoint) {
+        dotLayer?.removeFromSuperlayer()
+        let dot = CAShapeLayer()
+        dot.path = UIBezierPath(ovalIn: CGRect(x: -8, y: -8, width: 16, height: 16)).cgPath
+        dot.fillColor = color.cgColor
+        dot.strokeColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        dot.lineWidth = 2
+        dot.shadowColor = color.cgColor
+        dot.shadowRadius = 12
+        dot.shadowOpacity = 1
+        dot.shadowOffset = .zero
+        layer.addSublayer(dot)
+        dotLayer = dot
+        moveDot(to: point)
+    }
+
+    private func moveDot(to point: CGPoint) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        dotLayer?.position = point
+        CATransaction.commit()
+    }
+
+    private func hideDot() {
+        guard let dot = dotLayer else { return }
+        dotLayer = nil
+        fade([dot])
     }
 
     /// Smooths the trail with curves through the midpoints of the samples.
