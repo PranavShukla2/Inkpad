@@ -50,7 +50,7 @@ enum PDFImporter {
                 pdfPageIndex: index
             )
             // The PDF's own text makes imported documents searchable.
-            page.recognizedText = document.page(at: index)?.string ?? ""
+            page.documentText = document.page(at: index)?.string ?? ""
         }
         notebook.updateCoverImage()
         return notebook

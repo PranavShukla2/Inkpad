@@ -152,7 +152,7 @@ struct LibraryView: View {
             .padding(.vertical, 16)
         }
         .background(Theme.desk)
-        .searchable(text: $searchText, prompt: "Search notebooks")
+        .searchable(text: $searchText, prompt: "Search titles and handwriting")
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("")
@@ -211,9 +211,16 @@ struct LibraryView: View {
                     .font(.serif(.subheadline))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
-                Text(notebook.updatedAt, format: .relative(presentation: .named))
-                    .font(.caption)
-                    .foregroundStyle(Theme.inkSecondary)
+                if let snippet = searchSnippet(for: notebook) {
+                    Text(snippet)
+                        .font(.caption)
+                        .foregroundStyle(Theme.stamp)
+                        .lineLimit(2)
+                } else {
+                    Text(notebook.updatedAt, format: .relative(presentation: .named))
+                        .font(.caption)
+                        .foregroundStyle(Theme.inkSecondary)
+                }
             }
         }
         .contextMenu {
@@ -291,7 +298,9 @@ struct LibraryView: View {
         }
         let matching = searchText.isEmpty
             ? inSection
-            : inSection.filter { $0.displayTitle.localizedStandardContains(searchText) }
+            : inSection.filter { notebook in
+                notebook.displayTitle.localizedStandardContains(searchText) || searchSnippet(for: notebook) != nil
+            }
         switch sort {
         case .modified:
             return matching
@@ -300,6 +309,21 @@ struct LibraryView: View {
         case .title:
             return matching.sorted { $0.displayTitle.localizedStandardCompare($1.displayTitle) == .orderedAscending }
         }
+    }
+
+    /// A short excerpt around the first handwriting or PDF text match.
+    private func searchSnippet(for notebook: Notebook) -> String? {
+        guard !searchText.isEmpty else { return nil }
+        for page in notebook.sortedPages {
+            for text in [page.recognizedText, page.documentText] where !text.isEmpty {
+                guard let range = text.range(of: searchText, options: [.caseInsensitive, .diacriticInsensitive]) else { continue }
+                let start = text.index(range.lowerBound, offsetBy: -24, limitedBy: text.startIndex) ?? text.startIndex
+                let end = text.index(range.upperBound, offsetBy: 40, limitedBy: text.endIndex) ?? text.endIndex
+                let excerpt = text[start..<end].replacingOccurrences(of: "\n", with: " ")
+                return "p. \(page.index + 1): " + (start > text.startIndex ? "…" : "") + excerpt + (end < text.endIndex ? "…" : "")
+            }
+        }
+        return nil
     }
 
     private var sectionTitle: String {

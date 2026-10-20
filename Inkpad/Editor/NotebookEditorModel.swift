@@ -25,6 +25,8 @@ final class NotebookEditorModel {
     /// Bumped whenever pages are added, removed or reordered, so an in-flight
     /// background save can't write ink to the wrong page.
     @ObservationIgnored private var layoutVersion = 0
+    @ObservationIgnored private var pagesNeedingRecognition: [Page] = []
+    @ObservationIgnored private var recognitionTask: Task<Void, Never>?
 
     init(notebook: Notebook) {
         self.notebook = notebook
@@ -87,20 +89,46 @@ final class NotebookEditorModel {
 
     private func apply(_ data: [Data]) {
         guard data.count == pages.count else { return }
-        var changed = false
+        var changedPages: [Page] = []
         for (index, pageData) in data.enumerated() where savedData[index] != pageData {
             pages[index].drawingData = pageData
             pages[index].updatedAt = .now
             savedData[index] = pageData
-            changed = true
+            changedPages.append(pages[index])
         }
-        if changed {
+        if !changedPages.isEmpty {
             notebook.updatedAt = .now
+            scheduleRecognition(for: changedPages)
+        }
+    }
+
+    /// Reads handwriting a couple of seconds after writing stops.
+    private func scheduleRecognition(for changedPages: [Page]) {
+        for page in changedPages where !pagesNeedingRecognition.contains(page) {
+            pagesNeedingRecognition.append(page)
+        }
+        recognitionTask?.cancel()
+        recognitionTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.recognizePendingPages()
+        }
+    }
+
+    private func recognizePendingPages() {
+        let pending = pagesNeedingRecognition
+        pagesNeedingRecognition = []
+        guard !pending.isEmpty else { return }
+        // Not tied to the editor, so it finishes even after the notebook closes.
+        Task {
+            await HandwritingRecognizer.update(pending)
         }
     }
 
     func close() {
         saveNow()
+        recognitionTask?.cancel()
+        recognizePendingPages()
         notebook.currentPageIndex = currentPageIndex
         canvas?.canvasView.undoManager?.removeAllActions()
     }
@@ -153,6 +181,7 @@ final class NotebookEditorModel {
             )
             copy.drawingData = source.drawingData
             copy.recognizedText = source.recognizedText
+            copy.documentText = source.documentText
         }
     }
 

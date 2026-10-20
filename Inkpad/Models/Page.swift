@@ -15,8 +15,10 @@ final class Page {
     /// Set when the page shows a page of the notebook's PDF behind the ink.
     var pdfPageIndex: Int?
     @Attribute(.externalStorage) var drawingData: Data?
-    /// Handwriting (or PDF text) found on the page, used by search.
+    /// Handwriting found on the page, used by search.
     var recognizedText: String = ""
+    /// Text from the imported PDF page, used by search.
+    var documentText: String = ""
     var updatedAt: Date
     var notebook: Notebook?
 
