@@ -20,6 +20,11 @@ enum DemoContent {
     static func seedIfRequested(in context: ModelContext) {
         guard ProcessInfo.processInfo.arguments.contains("-seedDemo") else { return }
         try? context.delete(model: Notebook.self)
+        try? context.delete(model: Folder.self)
+        let university = Folder(name: "University")
+        let personal = Folder(name: "Personal")
+        context.insert(university)
+        context.insert(personal)
 
         let samples: [(String, CoverStyle, PaperStyle, PaperColor)] = [
             ("Physics", .ink, .grid, .white),
@@ -36,6 +41,7 @@ enum DemoContent {
             notebook.sortedPages.first?.drawingData = scribbles().dataRepresentation()
             notebook.insertPage(at: 1)
             notebook.isFavorite = index == 1 || index == 3
+            notebook.folder = [0, 3, 5].contains(index) ? university : [1, 7].contains(index) ? personal : nil
             notebook.updatedAt = .now.addingTimeInterval(-Double(index) * 5400)
         }
         if let notebook = try? PDFImporter.makeNotebook(from: samplePDF(), in: context) {
