@@ -48,6 +48,11 @@ enum DemoContent {
             notebook.isFavorite = index == 1 || index == 3
             notebook.folder = [0, 3, 5].contains(index) ? university : [1, 7].contains(index) ? personal : nil
             notebook.updatedAt = .now.addingTimeInterval(-Double(index) * 5400)
+            let designs: [CoverDesign] = [.cloth, .leather, .terrazzo, .stripes, .linen, .waves, .grid, .dots]
+            let labels: [CoverLabelStyle] = [.plate, .plate, .corner, .band, .plate, .corner, .band, .plate]
+            notebook.coverDesignRaw = designs[index].rawValue
+            notebook.coverLabelRaw = labels[index].rawValue
+            notebook.coverEmblem = ["🔭", "", "💡", "🎵", "", "", "📐", "✈️"][index]
         }
         let board = Notebook.createCanvas(in: context, title: "Project Board", cover: .moss, paperStyle: .dots, paperColor: .white)
         board.sortedPages.first?.drawingData = scribbles().dataRepresentation()
