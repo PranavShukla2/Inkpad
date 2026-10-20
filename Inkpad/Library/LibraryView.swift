@@ -11,6 +11,7 @@ enum LibrarySection: Hashable {
     case all
     case favorites
     case documents
+    case folder(Folder)
 }
 
 enum LibrarySort: String, CaseIterable, Identifiable {
@@ -34,6 +35,7 @@ struct LibraryView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(ToolState.self) private var tools
     @Query(sort: \Notebook.updatedAt, order: .reverse) private var notebooks: [Notebook]
+    @Query(sort: \Folder.name) private var folders: [Folder]
     @AppStorage("librarySort") private var sort = LibrarySort.modified
     @State private var section: LibrarySection? = .all
     @State private var searchText = ""
@@ -44,6 +46,11 @@ struct LibraryView: View {
     @State private var renameText = ""
     @State private var notebookToDelete: Notebook?
     @State private var isImportingPDF = false
+    @State private var isCreatingFolder = false
+    @State private var notebookToFileInNewFolder: Notebook?
+    @State private var folderBeingRenamed: Folder?
+    @State private var folderToDelete: Folder?
+    @State private var folderNameText = ""
     @State private var importErrorMessage: String?
     @Namespace private var transitionNamespace
 
@@ -56,13 +63,15 @@ struct LibraryView: View {
         .tint(Theme.stamp)
         .sheet(isPresented: $isCreatingNotebook, onDismiss: openCreatedNotebook) {
             NewNotebookSheet { title, cover, paperStyle, paperColor in
-                notebookToOpenAfterSheet = Notebook.create(
+                let notebook = Notebook.create(
                     in: modelContext,
                     title: title,
                     cover: cover,
                     paperStyle: paperStyle,
                     paperColor: paperColor
                 )
+                notebook.folder = selectedFolder
+                notebookToOpenAfterSheet = notebook
             }
         }
         .fullScreenCover(item: $openNotebook) { notebook in
@@ -92,6 +101,38 @@ struct LibraryView: View {
         } message: { _ in
             Text("All of its pages will be deleted. This can't be undone.")
         }
+        .alert("New Folder", isPresented: $isCreatingFolder) {
+            TextField("Name", text: $folderNameText)
+            Button("Cancel", role: .cancel) {
+                notebookToFileInNewFolder = nil
+            }
+            Button("Create", action: createFolder)
+        }
+        .alert("Rename Folder", isPresented: isRenamingFolder, presenting: folderBeingRenamed) { folder in
+            TextField("Name", text: $folderNameText)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") {
+                let name = folderNameText.trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty {
+                    folder.name = name
+                }
+            }
+        }
+        .confirmationDialog(
+            "Delete this folder?",
+            isPresented: isDeletingFolder,
+            titleVisibility: .visible,
+            presenting: folderToDelete
+        ) { folder in
+            Button("Delete “\(folder.name)”", role: .destructive) {
+                if section == .folder(folder) {
+                    section = .all
+                }
+                modelContext.delete(folder)
+            }
+        } message: { _ in
+            Text("Notebooks inside it are kept and move back to All Notebooks.")
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 saveChanges()
@@ -120,6 +161,32 @@ struct LibraryView: View {
                 .tag(LibrarySection.favorites)
             Label("Documents", systemImage: "doc.richtext")
                 .tag(LibrarySection.documents)
+
+            Section {
+                ForEach(folders) { folder in
+                    Label(folder.name, systemImage: "folder")
+                        .badge(folder.notebooks.count)
+                        .tag(LibrarySection.folder(folder))
+                        .contextMenu {
+                            Button("Rename", systemImage: "pencil") {
+                                folderNameText = folder.name
+                                folderBeingRenamed = folder
+                            }
+                            Button("Delete Folder", systemImage: "trash", role: .destructive) {
+                                folderToDelete = folder
+                            }
+                        }
+                }
+                Button {
+                    startCreatingFolder()
+                } label: {
+                    Label("New Folder", systemImage: "folder.badge.plus")
+                        .foregroundStyle(Theme.stamp)
+                }
+                .buttonStyle(.plain)
+            } header: {
+                Text("Folders")
+            }
         }
         .scrollContentBackground(.hidden)
         .background(Theme.deskRaised)
@@ -155,7 +222,7 @@ struct LibraryView: View {
             .padding(.vertical, 16)
         }
         .background(Theme.desk)
-        .searchable(text: $searchText, prompt: "Search titles and handwriting")
+        .searchable(text: $searchText, prompt: "Search")
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("")
@@ -251,6 +318,23 @@ struct LibraryView: View {
             }
             .pickerStyle(.menu)
         }
+        Menu("Move to Folder", systemImage: "folder") {
+            Button("None") {
+                notebook.folder = nil
+            }
+            .disabled(notebook.folder == nil)
+            ForEach(folders) { folder in
+                Button(folder.name) {
+                    notebook.folder = folder
+                }
+                .disabled(notebook.folder == folder)
+            }
+            Divider()
+            Button("New Folder…", systemImage: "folder.badge.plus") {
+                notebookToFileInNewFolder = notebook
+                startCreatingFolder()
+            }
+        }
         ShareLink(
             item: NotebookExport(title: notebook.displayTitle) { notebook.snapshot },
             preview: SharePreview(notebook.displayTitle)
@@ -279,7 +363,7 @@ struct LibraryView: View {
                         isImportingPDF = true
                     }
                     .buttonStyle(.borderedProminent)
-                } else if section == .all || section == nil {
+                } else if section != .favorites {
                     Button("New Notebook") {
                         isCreatingNotebook = true
                     }
@@ -297,6 +381,7 @@ struct LibraryView: View {
             case .all: true
             case .favorites: notebook.isFavorite
             case .documents: notebook.isPDF
+            case .folder(let folder): notebook.folder == folder
             }
         }
         let matching = searchText.isEmpty
@@ -334,6 +419,7 @@ struct LibraryView: View {
         case .all: "All Notebooks"
         case .favorites: "Favourites"
         case .documents: "Documents"
+        case .folder(let folder): folder.name
         }
     }
 
@@ -342,6 +428,7 @@ struct LibraryView: View {
         case .all: "Your shelf is empty"
         case .favorites: "No favourites yet"
         case .documents: "No documents yet"
+        case .folder: "This folder is empty"
         }
     }
 
@@ -350,6 +437,7 @@ struct LibraryView: View {
         case .all: "Create a notebook to start writing."
         case .favorites: "Long-press a notebook and add it to your favourites."
         case .documents: "Imported PDFs appear here."
+        case .folder: "Long-press a notebook and choose Move to Folder."
         }
     }
 
@@ -357,6 +445,36 @@ struct LibraryView: View {
 
     private var isRenaming: Binding<Bool> {
         Binding(get: { notebookBeingRenamed != nil }, set: { if !$0 { notebookBeingRenamed = nil } })
+    }
+
+    private var selectedFolder: Folder? {
+        if case .folder(let folder) = section {
+            return folder
+        }
+        return nil
+    }
+
+    private var isRenamingFolder: Binding<Bool> {
+        Binding(get: { folderBeingRenamed != nil }, set: { if !$0 { folderBeingRenamed = nil } })
+    }
+
+    private var isDeletingFolder: Binding<Bool> {
+        Binding(get: { folderToDelete != nil }, set: { if !$0 { folderToDelete = nil } })
+    }
+
+    private func startCreatingFolder() {
+        folderNameText = ""
+        isCreatingFolder = true
+    }
+
+    private func createFolder() {
+        let name = folderNameText.trimmingCharacters(in: .whitespaces)
+        let folder = Folder(name: name.isEmpty ? "New Folder" : name)
+        modelContext.insert(folder)
+        if let notebook = notebookToFileInNewFolder {
+            notebook.folder = folder
+            notebookToFileInNewFolder = nil
+        }
     }
 
     private var isDeleting: Binding<Bool> {
