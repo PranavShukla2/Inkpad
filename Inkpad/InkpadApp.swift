@@ -22,6 +22,9 @@ struct InkpadApp: App {
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             LegacyNoteMigration.run(in: container.mainContext)
+            #if DEBUG
+            DemoContent.seedIfRequested(in: container.mainContext)
+            #endif
             return container
         } catch {
             fatalError("Could not create ModelContainer: \(error)")

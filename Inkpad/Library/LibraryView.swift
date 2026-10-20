@@ -94,6 +94,13 @@ struct LibraryView: View {
                 saveChanges()
             }
         }
+        #if DEBUG
+        .task {
+            if DemoContent.shouldOpenFirstNotebook {
+                openNotebook = visibleNotebooks.first
+            }
+        }
+        #endif
     }
 
     // MARK: - Sidebar
