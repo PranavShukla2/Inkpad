@@ -120,9 +120,13 @@ struct NotebookEditorView: View {
                 try? await Task.sleep(for: .seconds(undoDelay))
                 model.undo()
             }
-            if UserDefaults.standard.bool(forKey: "editFirstGraph") {
+            if let kind = UserDefaults.standard.string(forKey: "editFirst").flatMap(BoardItem.Kind.init(rawValue:)) {
                 try? await Task.sleep(for: .seconds(1))
-                model.editingItem = model.pages.flatMap(\.items).first { $0.kind == .graph }
+                model.editingItem = model.pages.flatMap(\.items).first { $0.kind == kind }
+            }
+            if UserDefaults.standard.bool(forKey: "showConverter") {
+                try? await Task.sleep(for: .seconds(1))
+                model.isShowingConverter = true
             }
             if UserDefaults.standard.bool(forKey: "convertText") {
                 isConvertingToText = true
@@ -132,6 +136,11 @@ struct NotebookEditorView: View {
             }
         }
         #endif
+        .sheet(isPresented: $model.isShowingConverter) {
+            UnitConverterSheet { text in
+                model.insertText(text)
+            }
+        }
         .sheet(item: $model.editingItem) { item in
             ItemEditorSheet(item: item) { edited in
                 model.updateItem(edited)

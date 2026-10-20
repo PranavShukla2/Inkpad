@@ -132,6 +132,22 @@ extension NotebookCanvasView: UIGestureRecognizerDelegate {
         return item
     }
 
+    /// Adds a typed text box in the middle of the view, undoably.
+    func insertTextBox(_ text: String) {
+        var center = visibleContentCenter
+        if !isBoard, layout.frames.indices.contains(currentPageIndex) {
+            let page = layout.frames[currentPageIndex].insetBy(dx: 170, dy: 40)
+            if !page.isNull {
+                center = CGPoint(x: min(max(center.x, page.minX), page.maxX), y: min(max(center.y, page.minY), page.maxY))
+            }
+        }
+        let box = TextBox(x: center.x - 150, y: center.y - 14, width: 300, text: text, fontSize: 22, colorHex: "1E1D1B")
+        textOverlay.add(box, beginEditing: false)
+        canvasView.undoManager?.registerUndo(withTarget: self) { target in
+            target.textOverlay.remove(id: box.id)
+        }
+    }
+
     var visibleContentCenter: CGPoint {
         let zoom = canvasView.zoomScale
         let offset = canvasView.contentOffset
@@ -149,8 +165,8 @@ extension NotebookCanvasView: UIGestureRecognizerDelegate {
         let zoom = canvasView.zoomScale
         var width = item.width + translation.x / zoom
         var height = item.height + translation.y / zoom
-        if item.kind == .image || item.kind == .sticky {
-            // Photos and notes keep their proportions.
+        if item.kind == .image || item.kind == .sticky || item.kind == .equation {
+            // Photos, notes and equations keep their proportions.
             let ratio = item.height / max(item.width, 1)
             width = max(width, 60)
             height = width * ratio
@@ -181,7 +197,7 @@ extension NotebookCanvasView: UIGestureRecognizerDelegate {
 
     @objc private func handleItemDoubleTap(_ recognizer: UITapGestureRecognizer) {
         let point = recognizer.location(in: itemsOverlay)
-        guard let item = itemsOverlay.item(at: point), item.kind == .sticky || item.kind == .graph else { return }
+        guard let item = itemsOverlay.item(at: point), item.kind != .shape, item.kind != .image else { return }
         selectItem(item.id)
         onEditItem?(item)
     }

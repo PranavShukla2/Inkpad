@@ -35,6 +35,15 @@ struct CanvasInsertBar: View {
                 insertButton("function", label: "Graph") {
                     model.insertGraph()
                 }
+                insertButton("x.squareroot", label: "Equation") {
+                    model.insertEquation()
+                }
+                insertButton("tablecells", label: "Table") {
+                    model.insertTable()
+                }
+                insertButton("arrow.left.arrow.right", label: "Unit Converter") {
+                    model.isShowingConverter = true
+                }
             }
             .padding(.horizontal, 6)
             .frame(height: 50)
@@ -92,6 +101,16 @@ struct NotebookInsertMenu: View {
             }
             Button("Graph", systemImage: "function") {
                 model.insertGraph()
+            }
+            Button("Equation (LaTeX)", systemImage: "x.squareroot") {
+                model.insertEquation()
+            }
+            Button("Table", systemImage: "tablecells") {
+                model.insertTable()
+            }
+            Divider()
+            Button("Unit Converter", systemImage: "arrow.left.arrow.right") {
+                model.isShowingConverter = true
             }
         } label: {
             Image(systemName: "plus.square.on.square")
@@ -153,12 +172,19 @@ struct ItemEditorSheet: View {
     let onSave: (BoardItem) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var functions: [String] = []
+    @State private var cells: [[String]] = []
+    /// What the item looked like when the sheet opened, to keep its scale.
+    @State private var original: BoardItem?
 
     var body: some View {
         NavigationStack {
             Form {
                 if item.kind == .graph {
                     graphEditor
+                } else if item.kind == .equation {
+                    EquationEditor(latex: $item.text)
+                } else if item.kind == .table {
+                    TableEditor(cells: $cells)
                 } else {
                     Section("Note") {
                         TextEditor(text: $item.text)
@@ -185,7 +211,7 @@ struct ItemEditorSheet: View {
                     }
                 }
             }
-            .navigationTitle(item.kind == .graph ? "Graph" : "Sticky Note")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -198,6 +224,13 @@ struct ItemEditorSheet: View {
                         if item.kind == .graph {
                             item.text = functions.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.joined(separator: "\n")
                         }
+                        if item.kind == .equation {
+                            resizeEquation()
+                        }
+                        if item.kind == .table {
+                            resizeTable()
+                            item.cells = cells
+                        }
                         onSave(item)
                         dismiss()
                     }
@@ -205,11 +238,38 @@ struct ItemEditorSheet: View {
                 }
             }
             .onAppear {
+                original = item
                 let existing = item.text.split(separator: "\n").map(String.init)
                 functions = existing + Array(repeating: "", count: max(0, 3 - existing.count))
+                cells = item.cells ?? [["", ""], ["", ""]]
             }
         }
         .tint(Theme.stamp)
+    }
+
+    private var title: String {
+        switch item.kind {
+        case .graph: "Graph"
+        case .equation: "Equation"
+        case .table: "Table"
+        default: "Sticky Note"
+        }
+    }
+
+    /// Fits the box to the new equation, at the size the user had scaled it to.
+    private func resizeEquation() {
+        guard let natural = BoardItemRenderer.equationSize(item.text) else { return }
+        let scale = original.flatMap { BoardItemRenderer.equationSize($0.text) }.map { item.height / $0.height } ?? 1
+        item.width = natural.width * scale
+        item.height = natural.height * scale
+    }
+
+    /// Keeps each row and column the same size when rows or columns are added.
+    private func resizeTable() {
+        let oldRows = CGFloat(max(original?.cells?.count ?? cells.count, 1))
+        let oldColumns = CGFloat(max(original?.cells?.first?.count ?? cells.first?.count ?? 1, 1))
+        item.height = item.height / oldRows * CGFloat(cells.count)
+        item.width = item.width / oldColumns * CGFloat(cells.first?.count ?? 1)
     }
 
     @ViewBuilder

@@ -7,7 +7,8 @@ import CoreGraphics
 import Foundation
 import SwiftData
 
-/// An object placed on a page or canvas: a sticky note, shape, photo or graph.
+/// An object placed on a page or canvas: a sticky note, shape, photo, graph,
+/// LaTeX equation or table.
 /// Stored with its page, in page coordinates.
 nonisolated struct BoardItem: Codable, Identifiable, Equatable, Sendable {
     enum Kind: String, Codable, Sendable {
@@ -15,6 +16,8 @@ nonisolated struct BoardItem: Codable, Identifiable, Equatable, Sendable {
         case shape
         case image
         case graph
+        case equation
+        case table
     }
 
     enum Shape: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -60,7 +63,7 @@ nonisolated struct BoardItem: Codable, Identifiable, Equatable, Sendable {
     var width: Double
     var height: Double
     var colorHex: String
-    /// Sticky note text, or a graph's expressions (one per line).
+    /// Sticky note text, a graph's expressions (one per line), or an equation's LaTeX.
     var text = ""
     var shape: Shape?
     /// The photo's ``Attachment`` id.
@@ -68,6 +71,8 @@ nonisolated struct BoardItem: Codable, Identifiable, Equatable, Sendable {
     /// The x range a graph plots.
     var domainMin = -10.0
     var domainMax = 10.0
+    /// A table's cells, row by row; the first row is the header.
+    var cells: [[String]]?
 
     var frame: CGRect {
         get { CGRect(x: x, y: y, width: width, height: height) }

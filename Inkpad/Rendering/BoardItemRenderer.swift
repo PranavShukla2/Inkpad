@@ -4,6 +4,7 @@
 //
 
 import UIKit
+import SwiftMath
 
 /// Draws sticky notes, shapes, photos and graphs. Used on screen, in
 /// previews and in exported PDFs, so they look the same everywhere.
@@ -24,6 +25,10 @@ nonisolated enum BoardItemRenderer {
             drawImage(image, in: rect, context: context, drawsShadow: drawsShadow)
         case .graph:
             drawGraph(item, in: rect, context: context, drawsShadow: drawsShadow)
+        case .equation:
+            drawEquation(item, in: rect)
+        case .table:
+            drawTable(item, in: rect, context: context, drawsShadow: drawsShadow)
         }
     }
 
@@ -309,6 +314,109 @@ nonisolated enum BoardItemRenderer {
                 .foregroundColor: UIColor(hex: 0x8A8378),
             ]).draw(at: CGPoint(x: plot.minX + 8, y: plot.midY - 8))
         }
+    }
+
+    // MARK: - Equations
+
+    /// Equations are typeset at this size; resizing scales the result.
+    static let equationFontSize: CGFloat = 28
+    nonisolated(unsafe) private static let equationCache = NSCache<NSString, UIImage>()
+
+    /// Typesets LaTeX with SwiftMath, or nil if it can't be read.
+    static func equationImage(_ latex: String, color: UIColor, fontSize: CGFloat = equationFontSize) -> UIImage? {
+        let key = "\(latex)|\(color.hexString)|\(fontSize)" as NSString
+        if let cached = equationCache.object(forKey: key) {
+            return cached
+        }
+        var math = MathImage(latex: latex, fontSize: fontSize, textColor: color, labelMode: .display, textAlignment: .left)
+        let (error, image, _) = math.asImage()
+        guard error == nil, let image else { return nil }
+        equationCache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// The natural size of an equation at the standard size, with padding.
+    static func equationSize(_ latex: String) -> CGSize? {
+        guard let image = equationImage(latex, color: .black) else { return nil }
+        return CGSize(width: image.size.width + 16, height: image.size.height + 16)
+    }
+
+    private static func drawEquation(_ item: BoardItem, in rect: CGRect) {
+        // Rendered large and scaled down, so it stays sharp when enlarged.
+        guard let image = equationImage(item.text, color: color(item), fontSize: equationFontSize * 3) else {
+            NSAttributedString(string: "Can't read this LaTeX", attributes: [
+                .font: UIFont.systemFont(ofSize: 13, weight: .medium),
+                .foregroundColor: UIColor(hex: 0xD2462A),
+            ]).draw(at: CGPoint(x: rect.minX + 6, y: rect.midY - 8))
+            return
+        }
+        let inner = rect.insetBy(dx: 8 * rect.width / max(rect.width, 1), dy: 8)
+        let scale = min(inner.width / image.size.width, inner.height / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        image.draw(in: CGRect(x: inner.minX, y: inner.midY - size.height / 2, width: size.width, height: size.height))
+    }
+
+    // MARK: - Tables
+
+    private static func drawTable(_ item: BoardItem, in rect: CGRect, context: CGContext, drawsShadow: Bool) {
+        let cells = item.cells ?? [[""]]
+        let rows = max(cells.count, 1)
+        let columns = max(cells.map(\.count).max() ?? 1, 1)
+        let card = UIBezierPath(roundedRect: rect, cornerRadius: 8)
+        if drawsShadow {
+            context.saveGState()
+            context.setShadow(offset: CGSize(width: 0, height: 2), blur: 6, color: UIColor.black.withAlphaComponent(0.12).cgColor)
+            UIColor.white.setFill()
+            card.fill()
+            context.restoreGState()
+        }
+        context.saveGState()
+        card.addClip()
+        UIColor.white.setFill()
+        card.fill()
+
+        let rowHeight = rect.height / CGFloat(rows)
+        let columnWidth = rect.width / CGFloat(columns)
+        (color(item).withAlphaComponent(0.18)).setFill()
+        UIRectFill(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rowHeight))
+
+        let grid = UIBezierPath()
+        for row in 1..<rows {
+            grid.move(to: CGPoint(x: rect.minX, y: rect.minY + CGFloat(row) * rowHeight))
+            grid.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + CGFloat(row) * rowHeight))
+        }
+        for column in 1..<columns {
+            grid.move(to: CGPoint(x: rect.minX + CGFloat(column) * columnWidth, y: rect.minY))
+            grid.addLine(to: CGPoint(x: rect.minX + CGFloat(column) * columnWidth, y: rect.maxY))
+        }
+        UIColor(hex: 0xD8D0C2).setStroke()
+        grid.lineWidth = 1
+        grid.stroke()
+
+        let fontSize = max(10, min(rowHeight * 0.42, 18))
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        for (rowIndex, row) in cells.enumerated() {
+            for (columnIndex, text) in row.enumerated() {
+                let cell = CGRect(
+                    x: rect.minX + CGFloat(columnIndex) * columnWidth,
+                    y: rect.minY + CGFloat(rowIndex) * rowHeight,
+                    width: columnWidth,
+                    height: rowHeight
+                ).insetBy(dx: 8, dy: 0)
+                let string = NSAttributedString(string: text, attributes: [
+                    .font: UIFont.systemFont(ofSize: fontSize, weight: rowIndex == 0 ? .semibold : .regular),
+                    .foregroundColor: UIColor(hex: 0x24221F),
+                    .paragraphStyle: paragraph,
+                ])
+                let height = string.size().height
+                string.draw(with: CGRect(x: cell.minX, y: cell.midY - height / 2, width: cell.width, height: height), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], context: nil)
+            }
+        }
+        context.restoreGState()
+        UIColor(hex: 0xC9BFAE).setStroke()
+        card.lineWidth = 1
+        card.stroke()
     }
 
     /// 1, 2 or 5 times a power of ten, so grid labels are round numbers.

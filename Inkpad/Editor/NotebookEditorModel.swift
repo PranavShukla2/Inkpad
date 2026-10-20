@@ -19,6 +19,7 @@ final class NotebookEditorModel {
     private(set) var scrollAxis: ScrollAxis
     /// The sticky note or graph being edited in a sheet.
     var editingItem: BoardItem?
+    var isShowingConverter = false
     private(set) var zoomPercent = 100
 
     @ObservationIgnored private weak var canvas: NotebookCanvasView?
@@ -147,6 +148,25 @@ final class NotebookEditorModel {
         var item = BoardItem(kind: .graph, x: 0, y: 0, width: 440, height: 320, colorHex: "FFFFFF")
         item.text = "y = sin(x)"
         editingItem = canvas?.insertItem(item)
+    }
+
+    func insertEquation() {
+        let latex = "E = mc^2"
+        let size = BoardItemRenderer.equationSize(latex) ?? CGSize(width: 200, height: 60)
+        var item = BoardItem(kind: .equation, x: 0, y: 0, width: size.width, height: size.height, colorHex: "1E1D1B")
+        item.text = latex
+        editingItem = canvas?.insertItem(item)
+    }
+
+    func insertTable() {
+        var item = BoardItem(kind: .table, x: 0, y: 0, width: 420, height: 180, colorHex: BoardItem.shapeColors[1])
+        item.cells = [["Item", "Value", "Notes"], ["", "", ""], ["", "", ""]]
+        editingItem = canvas?.insertItem(item)
+    }
+
+    /// Drops a line of typed text in the middle of the view, e.g. a conversion.
+    func insertText(_ text: String) {
+        canvas?.insertTextBox(text)
     }
 
     /// Stores a photo once in the notebook and places it on the page.

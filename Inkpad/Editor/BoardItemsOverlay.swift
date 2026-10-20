@@ -85,8 +85,8 @@ final class BoardItemView: UIView {
         self.image = image
         frame = item.frame
 
-        // Paper-like items cast a soft shadow; shapes sit flat on the page.
-        let castsShadow = item.kind != .shape
+        // Paper-like items cast a soft shadow; shapes and equations sit flat on the page.
+        let castsShadow = item.kind != .shape && item.kind != .equation
         layer.shadowOpacity = castsShadow ? 0.16 : 0
         layer.shadowRadius = 8
         layer.shadowOffset = CGSize(width: 0, height: 3)
@@ -164,6 +164,12 @@ final class SelectionChromeView: UIView {
             addColorMenu(BoardItem.shapeColors + BoardItem.stickyColors)
         case .graph:
             addAction("function", label: "Edit Graph") { [weak self] in self?.onEdit?() }
+        case .equation:
+            addAction("pencil", label: "Edit Equation") { [weak self] in self?.onEdit?() }
+            addColorMenu(BoardItem.shapeColors)
+        case .table:
+            addAction("pencil", label: "Edit Table") { [weak self] in self?.onEdit?() }
+            addColorMenu(BoardItem.shapeColors)
         case .image:
             break
         }
