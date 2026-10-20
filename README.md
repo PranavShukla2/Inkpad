@@ -17,8 +17,8 @@ Notebooks, PDFs and endless canvases, built for Apple Pencil.
 - **Notebooks that feel like objects.** Cloth, leather, linen and patterned covers with page edges, ribbons, labels, emoji, or your own photo.
 - **Endless canvases.** A Freeform-style board for sticky notes, shapes, photos and graphs, kept in its own space apart from your notebooks.
 - **Handwriting to text.** Search everything you've written, convert pages to text, or write with the Text Pen and watch it become typed text.
-- **Graphs built in.** Type `y = sin(x)` and get a plotted graph on the page.
-- **Private by design.** Recognition, search and storage all happen on the iPad. No accounts, no servers, no third-party code.
+- **Maths built in.** LaTeX equations, function graphs, tables, a protractor and a unit converter.
+- **Private by design.** Recognition, search and storage all happen on the iPad. No accounts, no servers.
 
 ## Writing
 
@@ -28,7 +28,7 @@ Notebooks, PDFs and endless canvases, built for Apple Pencil.
 <td width="50%"><img src="docs/screenshots/ruler.jpg" alt="The rotatable ruler over a lined page"></td>
 </tr>
 <tr>
-<td><b>Notebook pages</b>: handwriting, graphs and sticky notes on the same page. The Ink Rail floats beside the page and folds away to a single button.</td>
+<td><b>Notebook pages</b>: handwriting, graphs, LaTeX equations, tables and sticky notes on the same page. The Ink Rail floats beside the page and folds away to a single button.</td>
 <td><b>Rotatable ruler</b>: twist with two fingers or use the angle buttons. It snaps to 45° steps and straightens lines drawn along its edge.</td>
 </tr>
 </table>
@@ -44,6 +44,7 @@ Notebooks, PDFs and endless canvases, built for Apple Pencil.
 | Text Pen | Handwriting turns into typed text a moment after you stop |
 | Eraser | **Object** and **Pixel** erasers in four sizes; also deletes text boxes |
 | Lasso | Select, move and resize ink |
+| Ruler and protractor | Rotate the ruler to draw straight lines at any angle; swing the protractor's arm to read angles |
 
 Apple Pencil double-tap switches to the eraser or your last tool (following your system setting), and a left-handed layout moves the rail to the right.
 
@@ -73,23 +74,41 @@ Apple Pencil double-tap switches to the eraser or your last tool (following your
 <td width="50%"><img src="docs/screenshots/canvases.jpg" alt="The Canvases section with board previews"></td>
 </tr>
 <tr>
-<td><b>An endless board</b> with an insert bar for sticky notes, shapes, text, photos and graphs. Fingers move and resize objects while the Pencil keeps drawing over them.</td>
+<td><b>An endless board</b> with an insert bar for sticky notes, shapes, text, photos, graphs, equations and tables. Fingers move and resize objects while the Pencil keeps drawing over them.</td>
 <td><b>Their own space</b>: canvases live behind the Canvases shelf in the Library, with live previews of each board.</td>
 </tr>
 </table>
 
-## Graphs and text
+## Maths tools
 
 <table>
 <tr>
+<td width="50%"><img src="docs/screenshots/equation.jpg" alt="The LaTeX equation editor"></td>
 <td width="50%"><img src="docs/screenshots/graph.jpg" alt="The graph editor with live preview"></td>
-<td width="50%"><img src="docs/screenshots/convert.jpg" alt="Converting handwriting to editable text"></td>
 </tr>
 <tr>
+<td><b>LaTeX equations</b>: type LaTeX or tap templates for fractions, roots, sums, integrals, limits, matrices and Greek letters. Typeset in Latin Modern, with a live preview.</td>
 <td><b>Graphs</b>: up to three functions per graph, such as <code>2x^2 - 3</code>, <code>3cos(2x) + 1</code>, <code>e^x</code> or <code>sqrt(x)</code>, with a live preview and an adjustable x range.</td>
-<td><b>Convert to Text</b>: turn a page or a whole notebook into editable text you can copy or share.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/protractor.jpg" alt="The protractor measuring an angle"></td>
+<td width="50%"><img src="docs/screenshots/converter.jpg" alt="The unit converter"></td>
+</tr>
+<tr>
+<td><b>Protractor</b>: drag and twist it into place, then swing the arm to read the angle.</td>
+<td><b>Unit converter</b>: length, mass, temperature, volume, area, speed, time and energy. Drop the result onto the page as text.</td>
 </tr>
 </table>
+
+Tables (up to 8×8, with a header row) can be inserted from the same menu.
+
+## Text
+
+<p align="center">
+<img src="docs/screenshots/convert.jpg" width="60%" alt="Converting handwriting to editable text">
+</p>
+
+**Convert to Text** turns a page or a whole notebook into editable text you can copy or share, and the **Text Pen** converts as you write.
 
 ## Make it yours
 
@@ -139,7 +158,7 @@ Debug builds accept launch arguments (**Product → Scheme → Edit Scheme → A
 
 ## Under the hood
 
-Inkpad is plain Swift with Apple frameworks only:
+Inkpad is plain Swift with Apple frameworks, plus [SwiftMath](https://github.com/mgriebling/SwiftMath) for typesetting LaTeX:
 
 | Framework | Used for |
 |---|---|
@@ -149,6 +168,7 @@ Inkpad is plain Swift with Apple frameworks only:
 | PDFKit / Core Graphics | PDF import, vector paper patterns and PDF export |
 | Vision | On-device handwriting recognition for search and Text Pen |
 | AVFoundation | Audio recording and playback |
+| SwiftMath | LaTeX equations (MIT licence) |
 
 ```
 Inkpad/
