@@ -14,6 +14,7 @@ struct NotebookEditorView: View {
     @State private var isShowingPages = false
     @State private var isShowingRecordings = false
     @State private var isConvertingToText = false
+    @State private var isShown = false
     @State private var toolAnnouncement: String?
     @State private var announcementTask: Task<Void, Never>?
     @State private var recorder = AudioRecorder()
@@ -26,6 +27,17 @@ struct NotebookEditorView: View {
     }
 
     var body: some View {
+        editor
+            .scaleEffect(isShown ? 1 : 0.94)
+            .opacity(isShown ? 1 : 0)
+            .onAppear {
+                withAnimation(.snappy(duration: 0.32)) {
+                    isShown = true
+                }
+            }
+    }
+
+    private var editor: some View {
         GeometryReader { proxy in
             ZStack {
                 Theme.desk.ignoresSafeArea()
@@ -129,7 +141,7 @@ struct NotebookEditorView: View {
         HStack(spacing: 10) {
             BarPill {
                 BarButton(symbol: "chevron.left", label: "Library") {
-                    dismiss()
+                    close()
                 }
                 Button {
                     renameText = model.notebook.title
@@ -292,6 +304,19 @@ struct NotebookEditorView: View {
         .buttonStyle(.plain)
         .padding(.bottom, 12)
         .accessibilityLabel("Page \(model.currentPageIndex + 1) of \(model.pages.count). Show all pages.")
+    }
+
+    /// Plays the closing animation, then dismisses without the system's own.
+    private func close() {
+        withAnimation(.easeIn(duration: 0.18)) {
+            isShown = false
+        } completion: {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                dismiss()
+            }
+        }
     }
 
     /// Briefly names the tool you switched to, e.g. "Pixel Eraser".

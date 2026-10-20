@@ -58,7 +58,6 @@ struct LibraryView: View {
     @State private var folderNameText = ""
     @State private var importErrorMessage: String?
     @State private var dropTargetFolder: Folder?
-    @Namespace private var transitionNamespace
 
     var body: some View {
         NavigationSplitView {
@@ -90,7 +89,8 @@ struct LibraryView: View {
         .fullScreenCover(item: $openNotebook) { notebook in
             NotebookEditorView(notebook: notebook, scrollAxis: tools.scrollAxis)
                 .environment(tools)
-                .zoomTransition(sourceID: notebook.persistentModelID, in: transitionNamespace)
+                // The editor animates itself in, over the library.
+                .presentationBackground(.clear)
         }
         .alert("Rename Notebook", isPresented: isRenaming, presenting: notebookBeingRenamed) { notebook in
             TextField("Title", text: $renameText)
@@ -161,7 +161,9 @@ struct LibraryView: View {
                 searchText = text
             }
             if let title = DemoContent.notebookTitleToOpen {
-                openNotebook = notebooks.first { $0.title == title }
+                if let notebook = notebooks.first(where: { $0.title == title }) {
+                    open(notebook)
+                }
             }
         }
         #endif
@@ -347,7 +349,7 @@ struct LibraryView: View {
     private func notebookCell(_ notebook: Notebook) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
-                openNotebook = notebook
+                open(notebook)
             } label: {
                 NotebookCoverView(
                     title: notebook.displayTitle,
@@ -359,7 +361,6 @@ struct LibraryView: View {
                 )
             }
             .buttonStyle(PressableButtonStyle())
-            .zoomTransitionSource(id: notebook.persistentModelID, in: transitionNamespace)
             .draggable(notebook.dragID) {
                 NotebookCoverView(title: notebook.displayTitle, draft: notebook.coverDraft, coverImageData: notebook.coverImageData, isPDF: notebook.isPDF, isCanvas: notebook.isCanvas)
                     .frame(width: 120)
@@ -469,7 +470,7 @@ struct LibraryView: View {
     @ViewBuilder
     private func notebookMenu(_ notebook: Notebook) -> some View {
         Button("Open", systemImage: "book") {
-            openNotebook = notebook
+            open(notebook)
         }
         Button("Rename", systemImage: "pencil") {
             renameText = notebook.title
@@ -670,16 +671,26 @@ struct LibraryView: View {
     private func importPDF(_ result: Result<URL, Error>) {
         do {
             let notebook = try PDFImporter.makeNotebook(from: result.get(), in: modelContext)
-            openNotebook = notebook
+            open(notebook)
         } catch {
             importErrorMessage = error.localizedDescription
+        }
+    }
+
+    /// Presents the editor without the system's slide or swipe-to-dismiss;
+    /// the editor plays its own open and close animation.
+    private func open(_ notebook: Notebook) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            openNotebook = notebook
         }
     }
 
     private func openCreatedNotebook() {
         if let notebook = notebookToOpenAfterSheet {
             notebookToOpenAfterSheet = nil
-            openNotebook = notebook
+            open(notebook)
         }
     }
 
