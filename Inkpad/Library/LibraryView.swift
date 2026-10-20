@@ -171,6 +171,22 @@ struct LibraryView: View {
 
     private var sidebar: some View {
         List(selection: $section) {
+            HStack(spacing: 10) {
+                Image(systemName: "signature")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Theme.stamp, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                Text("Inkpad")
+                    .font(.serif(.title2, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+            }
+            .padding(.bottom, 8)
+            .listRowBackground(Color.clear)
+            .selectionDisabled()
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+
             Label("Library", systemImage: "books.vertical")
                 .tag(LibrarySection.library)
             Label("Recents", systemImage: "clock")
@@ -212,7 +228,9 @@ struct LibraryView: View {
         }
         .scrollContentBackground(.hidden)
         .background(Theme.deskRaised)
-        .navigationTitle("Inkpad")
+        // The brand row at the top of the list stands in for the title.
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Shelf
